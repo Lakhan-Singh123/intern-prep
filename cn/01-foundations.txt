@@ -1,0 +1,136 @@
+================================================================
+MODULE 1 — CN FOUNDATIONS
+================================================================
+
+WHY NETWORKS EXIST
+------------------
+Machines need to communicate without humans physically carrying data.
+A network = two or more devices connected to share data.
+Every network needs: Links (physical path) + Nodes (connected devices).
+
+
+NETWORK TYPES
+-------------
+Categorized by geographic size:
+
+  LAN (Local Area Network)
+    - Home, office, school
+    - High speed (100 Mbps – 10 Gbps)
+    - You own and control it
+    - Uses Ethernet (wired) or Wi-Fi (wireless)
+
+  MAN (Metropolitan Area Network)
+    - City-scale, connects multiple LANs
+    - Example: city-wide Wi-Fi, cable TV network
+    - Owned by ISP or government
+
+  WAN (Wide Area Network)
+    - Country/world scale
+    - The internet IS a WAN
+    - You don't own it — rent access from ISP
+    - Lower speed than LAN relative to distance
+
+Interview answer: "LAN is local, fast, privately owned.
+WAN is large-scale, uses ISP infrastructure. Internet is the largest WAN."
+
+
+INTERNET AND BACKBONE NETWORKS
+-------------------------------
+Your device → Home Router → ISP (Tier-3) → Regional ISP (Tier-2)
+→ Backbone (Tier-1) → Destination ISP → Destination Server
+
+Backbone = massive fiber optic cables (run under oceans)
+owned by Tier-1 ISPs (AT&T, NTT, Tata Communications).
+Tier-1 ISPs peer with each other for free. Lower tiers pay higher tiers.
+
+
+CLIENT-SERVER vs PEER-TO-PEER
+------------------------------
+Client-Server:
+  - Server: always on, waits for requests, provides service
+  - Client: initiates request, consumes service
+  - Example: browser (client) ↔ google.com (server)
+  - Most of the internet uses this model
+
+Peer-to-Peer (P2P):
+  - Every device is both client AND server
+  - No central authority
+  - Examples: BitTorrent, blockchain
+  - Pros: no single point of failure, scales naturally
+  - Cons: harder to manage, security concerns
+
+
+HOW DATA MOVES IN PACKETS
+--------------------------
+Data is broken into small chunks called packets.
+
+Why NOT one big stream?
+  - Occupies entire path for too long
+  - One failure = resend everything
+  - Nobody else can use the path
+
+Each packet = Header (metadata) + Payload (actual data)
+Header contains: source IP, destination IP, packet number, total packets
+
+Different packets can take different routes.
+Arrive out of order → destination reassembles using packet numbers.
+
+Benefits:
+  - Multiple users share network simultaneously
+  - If one path fails, packets reroute automatically
+  - More efficient use of network resources
+
+
+WHAT IS A PROTOCOL?
+--------------------
+Agreed-upon rules for communication between devices.
+Without protocols, devices from different manufacturers can't talk.
+
+Examples: HTTP, TCP, IP, DNS — each defines rules for one layer.
+
+
+BANDWIDTH vs THROUGHPUT vs LATENCY
+------------------------------------
+Bandwidth  = maximum capacity of a link (size of pipe)
+             Measured in Mbps, Gbps. "100 Mbps plan" = bandwidth.
+
+Throughput = actual data rate achieved in practice (cars on highway)
+             Always ≤ bandwidth. Affected by congestion, packet loss.
+
+Latency    = time for one packet to travel source → destination
+             Measured in ms. Affected by distance, hops, processing.
+
+Key distinction:
+  High bandwidth + high latency = fast downloads, laggy gaming
+  Low bandwidth  + low latency  = slow downloads, responsive gaming
+
+★ Interview answer for "latency doesn't matter, only bandwidth":
+  Bandwidth determines how fast LARGE data transfers.
+  Latency determines how RESPONSIVE interactions feel.
+  Satellite internet: 100 Mbps bandwidth, 600ms latency →
+  fast downloads but gaming unplayable, browsing feels slow.
+  Loading a webpage needs multiple round trips — each costs one latency.
+  Which matters more depends on the use case.
+
+
+UNICAST vs BROADCAST vs MULTICAST
+-----------------------------------
+Unicast   — one sender, one specific receiver (most internet traffic)
+Broadcast — one sender, ALL devices on network receive it
+            Example: ARP request. Only within LAN, never crosses routers.
+            Destination: 255.255.255.255
+Multicast — one sender, specific GROUP of receivers
+            Example: live video streaming to subscribers
+
+
+QUICK REFERENCE
+---------------
+LAN     → local, fast, private
+WAN     → large scale, ISP infrastructure, internet
+Packet  → header (src IP, dst IP, seq no.) + payload
+Protocol → agreed rules for communication
+Bandwidth  → max capacity
+Throughput → actual achieved rate (≤ bandwidth)
+Latency    → travel time source → destination
+Unicast  → 1:1 | Broadcast → 1:all | Multicast → 1:group
+================================================================

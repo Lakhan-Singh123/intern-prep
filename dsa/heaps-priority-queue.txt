@@ -1,0 +1,284 @@
+================================================================
+HEAPS & PRIORITY QUEUE — Interview Prep Notes
+================================================================
+
+⚠️  REVISE LATER: LC 373, LC 295, LC 621 — these felt complex during first pass.
+    Re-attempt from scratch before the Microsoft interview.
+
+================================================================
+
+CORE CONCEPT
+------------
+Heap = complete binary tree with one rule:
+  Min-Heap: parent ≤ children  →  root is always the MINIMUM
+  Max-Heap: parent ≥ children  →  root is always the MAXIMUM
+
+Stored as an array internally:
+  Parent of index i  → (i-1) / 2
+  Left child         → 2*i + 1
+  Right child        → 2*i + 2
+
+Priority Queue = the interface. Heap = the implementation.
+
+WHEN TO USE A HEAP
+------------------
+Ask: "Do I repeatedly need the min or max as data changes?"
+  Yes → Heap
+  Need min/max once → sort instead
+  Need kth element from a stream → heap
+  Process by priority → heap
+
+KEY RULE: Heap gives you min/max in O(1).
+          Everything else (search, arbitrary access) is O(n). Heap is NOT for that.
+
+
+================================================================
+JAVA — PRIORITY QUEUE
+================================================================
+
+// Min-heap (default)
+PriorityQueue<Integer> minHeap = new PriorityQueue<>();
+
+// Max-heap
+PriorityQueue<Integer> maxHeap = new PriorityQueue<>(Collections.reverseOrder());
+
+// Custom comparator — sort int[] by second element
+PriorityQueue<int[]> pq = new PriorityQueue<>((a, b) -> a[1] - b[1]);
+
+// Custom comparator — sort by frequency (via map)
+PriorityQueue<Integer> pq = new PriorityQueue<>((a, b) -> map.get(a) - map.get(b));
+
+minHeap.offer(5)       // insert       O(log n)
+minHeap.poll()         // remove min   O(log n)
+minHeap.peek()         // look at min  O(1)
+minHeap.size()
+minHeap.isEmpty()
+
+
+================================================================
+5 CORE PATTERNS
+================================================================
+
+PATTERN 1: TOP-K ELEMENTS
+--------------------------
+Find K largest  → use MIN-heap of size K
+Find K smallest → use MAX-heap of size K
+
+Why opposite? The heap's top is the EVICTION CANDIDATE.
+For K largest: top of min-heap = smallest of your K largest = first to evict if something bigger arrives.
+
+    // K largest
+    PriorityQueue<Integer> minHeap = new PriorityQueue<>();
+    for (int num : nums) {
+        minHeap.offer(num);
+        if (minHeap.size() > k) minHeap.poll();  // evict smallest
+    }
+    // heap contains exactly K largest
+
+Time: O(n log K), Space: O(K)
+
+
+PATTERN 2: KTH LARGEST / SMALLEST
+------------------------------------
+Direct application of Pattern 1.
+After processing all elements, peek() is your answer.
+
+LC 215 — Kth Largest Element in Array:
+    for (int num : nums) {
+        minHeap.offer(num);
+        if (minHeap.size() > k) minHeap.poll();
+    }
+    return minHeap.peek();
+
+LC 703 — Kth Largest in Stream:
+    Same — maintain min-heap of size k permanently.
+    Every new number: offer it, if size > k then poll.
+
+Time: O(n log K), Space: O(K)
+
+
+PATTERN 3: TOP-K FREQUENT ELEMENTS
+-------------------------------------
+Step 1: Build frequency map with HashMap
+Step 2: Use min-heap of size K, sorted by FREQUENCY (not value)
+Step 3: Peek/poll for result
+
+    Map<Integer, Integer> freq = new HashMap<>();
+    for (int num : nums) freq.put(num, freq.getOrDefault(num, 0) + 1);
+
+    PriorityQueue<Integer> minHeap = new PriorityQueue<>((a, b) -> freq.get(a) - freq.get(b));
+    for (int key : freq.keySet()) {
+        minHeap.offer(key);
+        if (minHeap.size() > k) minHeap.poll();
+    }
+
+LC 347 — Top K Frequent Elements
+Time: O(n log K), Space: O(n)
+
+
+PATTERN 4: MERGE K SORTED LISTS/ARRAYS
+-----------------------------------------
+Put head of each list in min-heap.
+Always poll smallest → add to result → push its next into heap.
+
+    PriorityQueue<ListNode> minHeap = new PriorityQueue<>((a, b) -> a.val - b.val);
+    for (ListNode list : lists) {
+        if (list != null) minHeap.offer(list);
+    }
+    while (!minHeap.isEmpty()) {
+        ListNode node = minHeap.poll();
+        // add to result
+        if (node.next != null) minHeap.offer(node.next);
+    }
+
+LC 23 — Merge K Sorted Lists
+Time: O(N log K) where N = total nodes, K = number of lists
+Space: O(K)
+
+
+PATTERN 5: TWO HEAPS — MEDIAN OF STREAM  ⚠️ REVISE
+------------------------------------------------------
+Split data into two halves:
+  Lower half → MAX-heap  (top = largest of lower half)
+  Upper half → MIN-heap  (top = smallest of upper half)
+
+Balance rule: maxHeap can have at most 1 more element than minHeap.
+
+Median:
+  If sizes equal    → (maxHeap.peek() + minHeap.peek()) / 2.0
+  If maxHeap bigger → maxHeap.peek()
+
+    void addNum(int num) {
+        maxHeap.offer(num);                        // always add to lower half first
+        minHeap.offer(maxHeap.poll());             // rebalance: push max of lower to upper
+        if (minHeap.size() > maxHeap.size()) {    // keep lower >= upper
+            maxHeap.offer(minHeap.poll());
+        }
+    }
+
+LC 295 — Find Median from Data Stream
+Time: O(log n) insert, O(1) median
+Space: O(n)
+
+
+================================================================
+⚠️  PROBLEMS TO REVISE — attempted but felt non-obvious
+================================================================
+
+LC 373 — Find K Pairs with Smallest Sums
+  Pattern: Min-heap of pairs {sum, i, j}
+  Start: push all (nums1[0], nums2[j]) pairs for j=0..k
+  Each poll: push next pair from same row (i, j+1)
+  Insight: treat like merge K sorted lists where each row is a sorted list
+  Time: O(k log k)
+
+LC 295 — Find Median from Data Stream  (covered above)
+  Insight: two heaps split data at the median point
+  The tricky part: always add to maxHeap first, then rebalance
+
+LC 621 — Task Scheduler
+  Pattern: Greedy + Max-heap
+  Insight: always execute the most frequent remaining task
+           if most frequent is on cooldown, idle
+  Use max-heap to always get most frequent task
+  Count idle slots = max(0, (maxFreq-1) * (n+1) + countOfMaxFreq) - total tasks
+  Time: O(n log 26) = O(n)
+
+
+================================================================
+PROBLEMS COVERED (7 total)
+================================================================
+
+EASY
+----
+LC 703 — Kth Largest in Stream       → min-heap size k, offer + poll if size > k
+
+MEDIUM
+------
+LC 215 — Kth Largest in Array        → min-heap size k
+LC 347 — Top K Frequent Elements     → freq map + min-heap by frequency
+LC 373 — K Pairs Smallest Sums       → ⚠️ revise — min-heap, treat as merge K sorted
+LC 621 — Task Scheduler              → ⚠️ revise — greedy + max-heap
+
+HARD
+----
+LC 295 — Median from Data Stream     → ⚠️ revise — two heaps
+LC 23  — Merge K Sorted Lists        → min-heap of ListNodes (revisit from LL)
+
+
+================================================================
+COMPLEXITY CHEAT SHEET
+================================================================
+
+| Operation      | Time      |
+|----------------|-----------|
+| peek (min/max) | O(1)      |
+| offer (insert) | O(log n)  |
+| poll (remove)  | O(log n)  |
+| search         | O(n)      |
+| build heap     | O(n)      |
+
+Top-K pattern always: O(n log K) time, O(K) space
+
+
+================================================================
+COMMON INTERVIEW TRAPS
+================================================================
+
+1. Max-heap for K largest / Min-heap for K smallest — easy to flip
+   Rule: heap top = eviction candidate, so use OPPOSITE heap
+2. Comparator direction — (a,b) -> a-b is ascending (min-heap behavior)
+   (a,b) -> b-a is descending (max-heap behavior)
+3. Integer overflow in comparator — use Integer.compare(a,b) not a-b
+   for large values
+4. Two heaps: always add to maxHeap first, then rebalance — not directly to minHeap
+5. Heap is not for searching arbitrary elements — O(n) for that
+
+================================================================
+★ MASTER SIGNAL TABLE — PATTERN RECOGNITION
+================================================================
+
+When you see this in a problem...              → Think this pattern
+
+"K largest elements in array"                  → Min-heap of size K (evict smallest)
+"K smallest elements in array"                 → Max-heap of size K (evict largest)
+"Kth largest element"                          → Min-heap size K, peek() = answer
+"Kth largest in a stream of data"              → Min-heap size K, maintained live
+"top K frequent elements"                      → Freq map + min-heap by frequency
+"merge K sorted lists/arrays"                  → Min-heap of current heads
+"median of a stream / running median"          → Two heaps (max-heap lower, min-heap upper)
+"task scheduler with cooldown period"          → Max-heap (most frequent task first)
+"K pairs with smallest sums"                   → Min-heap, treat rows as sorted lists
+
+★ HEAP TYPE SIGNALS — min or max heap?
+  "K largest"  → MIN-heap of size K   (top = smallest of your K largest = evict candidate)
+  "K smallest" → MAX-heap of size K   (top = largest of your K smallest = evict candidate)
+  Rule: ALWAYS use the OPPOSITE heap. The top is what you're willing to throw away.
+
+★ TWO HEAPS SIGNAL:
+  "median at any point" / "running median"     → Two heaps split at median
+  "balance two groups dynamically"             → Two heaps
+  Setup: maxHeap (lower half) + minHeap (upper half), sizes differ by at most 1
+
+★ DISGUISED HEAP SIGNALS (story hides the priority queue):
+  "always process the most urgent / highest priority next" → max-heap
+  "always process the cheapest / closest next"            → min-heap (like Dijkstra)
+  "find running median as data arrives"                   → two heaps
+  "efficiently access both min and max"                   → two heaps
+
+★ HEAP vs SORT — when to choose:
+  Need min/max repeatedly as data changes  → Heap O(log n) per op
+  Need min/max just once                   → Sort O(n log n) then index
+  Need K elements from N total             → Heap O(n log K), faster than full sort
+
+================================================================
+INTERVIEW TIPS
+================================================================
+
+- "Kth largest/smallest" or "top K" → immediately think heap
+- "Median of stream" → immediately think two heaps
+- "Merge K sorted" → immediately think min-heap of heads
+- State: "I'll use a min-heap of size K — O(n log K) vs O(n log n) sort"
+- For custom comparators: always test with a 2-element example mentally
+
+================================================================

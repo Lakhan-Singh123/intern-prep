@@ -1,0 +1,242 @@
+================================================================
+MODULE 6 — NETWORK LAYER: ROUTING
+================================================================
+
+ROUTER vs FORWARDING — TWO SEPARATE PROCESSES
+----------------------------------------------
+Routing (Control Plane):
+  Building and maintaining the routing table.
+  "Which networks exist? How do I reach them? Best path?"
+  Slow — happens in background (seconds/minutes)
+  Brain of the router
+
+Forwarding (Data Plane):
+  Using routing table to move packet from incoming to outgoing port.
+  "Packet arrived. Look up destination. Send out Port X."
+  Fast — line speed (nanoseconds, millions of packets/sec)
+  Muscles of the router
+
+Analogy: Routing = printing the map. Forwarding = following the map.
+
+
+ROUTING TABLE
+-------------
+Every router has a routing table. When packet arrives → look up destination IP.
+
+  Destination    Mask               Next Hop       Interface  Metric
+  ─────────────────────────────────────────────────────────────────
+  192.168.1.0    255.255.255.0      directly conn  eth0       0
+  10.0.0.0       255.0.0.0          192.168.1.1    eth0       10
+  0.0.0.0        0.0.0.0            103.21.5.1     eth1       1
+
+Columns:
+  Destination → network this entry covers
+  Mask        → how specific this entry is
+  Next Hop    → which router to send to next
+  Interface   → which physical port to send out
+  Metric      → cost of path (lower = better)
+
+
+LONGEST PREFIX MATCH — CORE RULE                                  ★★★
+--------------------------------
+When destination IP matches multiple entries → pick MOST SPECIFIC one
+(longest prefix / most matching bits)
+
+Example — packet to 192.168.1.50:
+  192.168.0.0/16  → Router A  (16 bits match)
+  192.168.1.0/24  → Router B  (24 bits match)  ← WINNER
+  0.0.0.0/0       → Router C  (0 bits, default)
+
+Most specific always wins.
+
+DEFAULT ROUTE (0.0.0.0/0):
+  Matches EVERY destination. Used when no specific route exists.
+  Called gateway of last resort.
+  Your home router has default route pointing to Jio's backbone.
+  All internet traffic hits this route → forwarded to ISP.
+
+
+STATIC ROUTING
+--------------
+Admin manually configures each route. Router does exactly what it's told.
+
+Pros:
+  Simple, predictable, no protocol overhead
+  Secure (no routing info exchanged with neighbors)
+  Good for small/simple networks
+
+Cons:
+  Must update manually when network changes
+  No automatic failover (link down → route still points there)
+  Doesn't scale (imagine manually configuring thousands of routers)
+
+Used in: small offices, security-sensitive routes, last-mile connections.
+
+
+DYNAMIC ROUTING
+---------------
+Routers exchange routing information automatically via protocols.
+Network changes → routes update automatically.
+
+Three protocol families:
+  Distance Vector → share routing TABLE with neighbors (RIP)
+  Link State      → share TOPOLOGY with everyone (OSPF)
+  Hybrid          → combines both (EIGRP)
+  Path Vector     → share PATH with everyone (BGP)
+
+
+DISTANCE VECTOR ROUTING — RIP
+------------------------------
+Each router shares its entire routing table with neighbors.
+Neighbors update their own tables. Repeats until stable.
+
+  A tells B: "I reach network X in 0 hops"
+  B updates: "X = 1 hop via A" → tells C
+  C updates: "X = 2 hops via B" → tells D
+
+Protocol: RIP (Routing Information Protocol)
+  Metric   = hop count
+  Max hops = 15 (beyond = unreachable — poor scalability)
+  Update   = full table sent to neighbors every 30 seconds
+  Convergence = SLOW
+
+
+ROUTING LOOP AND COUNT-TO-INFINITY
+------------------------------------
+Problem with distance vector when a link fails:
+
+  Before: A→X directly. B knows X via A (1 hop). C knows X via B (2 hops).
+  Link A-X goes down. A marks X unreachable.
+  Before A tells B... B tells A: "I can reach X in 1 hop"
+  A thinks: "X = 2 hops via B" → tells B → B says "X = 3 hops" → ...
+  Counts to infinity. Packets loop A→B→A→B... forever.
+
+Fixes:
+  Split Horizon:
+    Don't advertise a route back toward where you learned it.
+    B learned X from A → B won't tell A about X.
+    Prevents A from thinking it can reach X via B.
+
+  Route Poisoning:
+    When route fails → immediately advertise it with metric=16 (infinity).
+    Everyone knows immediately: X is dead. Don't use it.
+
+  Hold-down Timer:
+    After route failure → ignore better routes for fixed time period.
+    Prevents premature re-addition of broken route.
+
+
+LINK STATE ROUTING — OSPF
+--------------------------
+Each router shares its local connections (LSA) with EVERY router.
+Everyone builds complete topology map → runs Dijkstra independently.
+
+Steps:
+  1. Each router floods LSA: "I am Router B, connected to A(cost 1), C(cost 5)"
+  2. Every router collects all LSAs → complete topology map
+  3. Each router runs Dijkstra → shortest path to every destination
+  4. Builds routing table from results
+
+Protocol: OSPF (Open Shortest Path First)
+  Metric       = cost (based on bandwidth — higher BW = lower cost)
+  No hop limit → scales to large networks
+  Convergence  = FAST (floods only changes, not full table every 30s)
+  CPU/Memory   = higher than RIP
+
+DISTANCE VECTOR vs LINK STATE:
+  Feature         RIP (DV)              OSPF (LS)
+  ─────────────────────────────────────────────────
+  What shared     Routing table         Topology (LSA)
+  Shared with     Neighbors only        Everyone (flooded)
+  Knowledge       Partial               Complete topology
+  Algorithm       Bellman-Ford          Dijkstra
+  Metric          Hop count             Cost (bandwidth)
+  Max hops        15                    None
+  Convergence     Slow                  Fast
+  Overhead        Low                   Higher
+
+
+EIGRP — HYBRID ROUTING
+-----------------------
+Cisco proprietary. Combines DV simplicity + LS speed.
+Uses DUAL algorithm. Metric = bandwidth + delay.
+Faster than RIP, less overhead than OSPF.
+Only works on Cisco devices (mostly).
+Interview level: know it's Cisco's proprietary hybrid protocol.
+
+
+AUTONOMOUS SYSTEM (AS)
+-----------------------
+A network or group of networks under ONE administrative control.
+Each AS has a unique AS Number (ASN).
+
+  Jio      = one AS (ASN: 55836)
+  Google   = one AS (ASN: 15169)
+  Airtel   = one AS (ASN: 9498)
+
+OSPF/RIP run INSIDE an AS (interior routing).
+BGP runs BETWEEN ASes (exterior routing).
+
+
+BGP — BORDER GATEWAY PROTOCOL                                     ★★★
+------------------------------
+The routing protocol of the internet. Connects ASes to each other.
+Without BGP, different ISPs cannot route to each other.
+
+Path Vector Protocol:
+  Shares complete AS PATH to destination (not just distance).
+  "To reach 8.8.8.8: path is AS1 → AS3 → AS2"
+  Loop prevention: if you see your own ASN in path → discard it.
+
+Policy-Based Routing:
+  Decisions based on business agreements, not just shortest path.
+  Jio may prefer Airtel (business partner) over AT&T (technically shorter).
+  Operators configure policies: prefer, avoid, filter routes.
+
+Key properties:
+  Handles internet scale (millions of routes, 100k+ ASes)
+  Designed for stability, not speed (slow convergence)
+  iBGP = BGP within an AS
+  eBGP = BGP between ASes ← what runs the internet
+
+BGP vs OSPF:
+  OSPF → inside one organization, fast, metric-based
+  BGP  → between organizations, slow, policy-based
+
+
+FULL ROUTING PICTURE
+---------------------
+Laptop → Home Router
+  default route → Jio router
+
+Jio Router (AS 1234)
+  OSPF inside Jio → reaches Jio's border router
+  eBGP → finds path to Google's AS
+
+Google Border Router (AS 15169)
+  OSPF inside Google → reaches Google server ✓
+
+OSPF/RIP: inside each organization
+BGP: between organizations (the internet backbone)
+
+
+QUICK REFERENCE
+---------------
+Control plane    → builds routing table (slow, background)
+Data plane       → forwards packets (fast, line speed)
+Longest prefix   → most specific match wins
+Default route    → 0.0.0.0/0, gateway of last resort
+Static routing   → manual, simple, no failover, small networks
+Dynamic routing  → automatic via protocols, adapts to changes
+RIP              → distance vector, hop count, 15 hop max, slow convergence
+OSPF             → link state, Dijkstra, cost metric, fast convergence
+EIGRP            → Cisco hybrid, bandwidth+delay metric
+Routing loop     → packets loop when route fails in distance vector
+Count-to-infinity→ hop count keeps increasing on dead route
+Split horizon    → don't advertise route back toward source
+Route poisoning  → advertise dead route as metric=16 immediately
+Hold-down timer  → ignore new routes for dead network temporarily
+AS               → network under one admin control, has unique ASN
+BGP              → routing between ASes, path vector, policy-based
+iBGP/eBGP        → BGP within AS / BGP between ASes
+================================================================

@@ -1,0 +1,214 @@
+HashMap & HashSet — DSA Intern Prep
+=====================================
+
+
+INTERNALS (interview theory)
+------------------------------
+HashMap uses an array of buckets internally.
+Each key is hashed → hash % array_size → bucket index.
+
+Collision: two keys hash to same bucket.
+  Java resolves with linked list at that bucket.
+  If list length > 8 → converts to Red-Black Tree (Java 8+).
+
+Load Factor = elements / buckets = 0.75 default.
+When exceeded → rehashing (doubles bucket array) → O(n) one-time cost.
+
+get/put is O(1) AVERAGE, not guaranteed.
+Worst case O(n) if all keys collide into same bucket.
+
+
+================================================================
+6 CORE PATTERNS
+================================================================
+
+
+PATTERN 1 — Frequency Counter
+-------------------------------
+Count occurrences of each element.
+
+  Map<Integer, Integer> freq = new HashMap<>();
+  for (int num : nums) {
+      freq.put(num, freq.getOrDefault(num, 0) + 1);
+  }
+
+Used in: anagrams, top K elements, majority element.
+
+
+PATTERN 2 — Two Sum Family (complement lookup)
+------------------------------------------------
+For each element, check if its complement already exists.
+
+  Map<Integer, Integer> map = new HashMap<>();
+  for (int i = 0; i < nums.length; i++) {
+      if (map.containsKey(target - nums[i]))
+          return new int[]{map.get(target - nums[i]), i};
+      map.put(nums[i], i);
+  }
+
+Why put AFTER check: prevents using same element twice.
+Used in: two sum, four sum, pair with given difference.
+
+
+PATTERN 3 — Prefix Sum + HashMap
+----------------------------------
+Count subarrays with sum = k.
+
+  Map<Integer, Integer> prefixCount = new HashMap<>();
+  prefixCount.put(0, 1);  // empty prefix — handles subarrays from index 0
+  int sum = 0, count = 0;
+  for (int num : nums) {
+      sum += num;
+      count += prefixCount.getOrDefault(sum - k, 0);
+      prefixCount.put(sum, prefixCount.getOrDefault(sum, 0) + 1);
+  }
+
+Why put(0, 1):
+  If sum == k at index i, then sum - k = 0.
+  Without put(0,1), this valid subarray [0..i] would be missed.
+
+Used in: subarray sum equals k, longest subarray with sum k.
+
+
+PATTERN 4 — Group by Equivalence
+----------------------------------
+Group elements that share the same canonical form.
+
+  Map<String, List<String>> groups = new HashMap<>();
+  for (String s : strs) {
+      String key = getKey(s);  // sorted string, frequency signature etc.
+      groups.computeIfAbsent(key, k -> new ArrayList<>()).add(s);
+  }
+
+computeIfAbsent: creates new list if key missing, then adds element.
+Used in: group anagrams, group shifted strings.
+
+
+PATTERN 5 — Index/Position Tracking
+--------------------------------------
+Store first seen index of each element.
+
+  Map<Integer, Integer> firstSeen = new HashMap<>();
+  for (int i = 0; i < nums.length; i++) {
+      if (firstSeen.containsKey(nums[i])) {
+          int distance = i - firstSeen.get(nums[i]);
+      } else {
+          firstSeen.put(nums[i], i);
+      }
+  }
+
+Used in: longest subarray without duplicates, find duplicate within k distance.
+
+
+PATTERN 6 — HashSet for O(1) Existence Check
+----------------------------------------------
+Fast lookup without needing values.
+
+  Set<Integer> set = new HashSet<>(Arrays.asList(nums));
+  set.contains(x);   // O(1)
+
+  // Detect duplicates
+  Set<Integer> seen = new HashSet<>();
+  for (int num : nums) {
+      if (!seen.add(num))  // add() returns false if already exists
+          // duplicate found
+  }
+
+Used in: longest consecutive sequence, contains duplicate.
+
+
+================================================================
+WHEN TO USE WHICH MAP
+================================================================
+
+HashMap         — O(1) get/put, NO ordering guarantee
+LinkedHashMap   — O(1) get/put, INSERTION order preserved
+TreeMap         — O(log n) get/put, SORTED by key
+
+LinkedHashMap use case: LRU Cache, maintain insertion order
+TreeMap use case:       floor/ceiling queries, range queries
+
+TreeMap special methods:
+  tmap.floorKey(x)    // largest key <= x
+  tmap.ceilingKey(x)  // smallest key >= x
+  tmap.lowerKey(x)    // largest key strictly < x
+  tmap.higherKey(x)   // smallest key strictly > x
+  tmap.firstKey()     // minimum key
+  tmap.lastKey()      // maximum key
+
+
+HASHSET vs TREESET
+-------------------
+HashSet   — O(1) add/contains, no order
+TreeSet   — O(log n) add/contains, always sorted
+
+TreeSet special methods: floor, ceiling, lower, higher, first, last
+
+
+================================================================
+INTERVIEW THEORY QUESTIONS
+================================================================
+
+Q: Why O(1) average but O(n) worst case?
+   Worst case: all keys hash to same bucket → one giant linked list → O(n).
+
+Q: What happens when two objects have same hashCode?
+   Same bucket → collision → stored as linked list/tree at that bucket.
+
+Q: Why override both hashCode() AND equals() together?
+   HashMap uses hashCode to find bucket, equals to find exact key.
+   Override equals but not hashCode → equal objects in different buckets
+   → get() returns null even if key exists. Always override both.
+
+Q: HashMap vs Hashtable?
+   HashMap    — not synchronized, allows null key/value, faster
+   Hashtable  — synchronized, no null keys, thread-safe but slow
+   ConcurrentHashMap — thread-safe HashMap, better than Hashtable for concurrency
+
+
+================================================================
+MOST USED METHODS
+================================================================
+
+HashMap:
+  map.put(key, value)
+  map.get(key)                           // null if not found
+  map.getOrDefault(key, defaultValue)    // safe get with fallback
+  map.containsKey(key)
+  map.containsValue(value)
+  map.remove(key)
+  map.size()
+  map.isEmpty()
+  map.keySet()                           // Set of all keys
+  map.values()                           // Collection of all values
+  map.entrySet()                         // Set of Map.Entry pairs
+  map.computeIfAbsent(key, k -> new ArrayList<>())  // create if missing
+  map.putIfAbsent(key, value)            // put only if key not present
+  map.merge(key, 1, Integer::sum)        // frequency counting shorthand
+
+  Iterating:
+  for (Map.Entry<String, Integer> entry : map.entrySet()) {
+      entry.getKey();
+      entry.getValue();
+  }
+
+HashSet:
+  set.add(x)           // returns false if already exists
+  set.remove(x)
+  set.contains(x)      // O(1)
+  set.size()
+  new HashSet<>(list)  // create from list, removes duplicates
+
+
+================================================================
+PATTERNS SUMMARY
+================================================================
+
+Count frequencies               →  HashMap<Element, Integer> + getOrDefault
+Find complement / pair          →  HashMap, check before put
+Count subarrays with sum k      →  prefix sum + HashMap, put(0,1) first
+Group equivalent elements       →  HashMap<Key, List> + computeIfAbsent
+Track first seen index          →  HashMap<Element, Index>
+Fast existence check            →  HashSet
+Sorted key operations           →  TreeMap (floor/ceiling/lower/higher)
+Sorted unique elements          →  TreeSet

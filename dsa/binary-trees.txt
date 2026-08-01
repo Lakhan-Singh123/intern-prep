@@ -1,0 +1,286 @@
+================================================================
+BINARY TREES — Interview Prep Notes
+================================================================
+
+CORE STRUCTURE
+--------------
+class TreeNode {
+    int val;
+    TreeNode left;
+    TreeNode right;
+    TreeNode(int val) { this.val = val; }
+}
+
+- Each node has at most 2 children (left, right)
+- Null means no child — always check null before accessing .left/.right
+- Root has no parent, leaves have no children
+
+
+TERMINOLOGY
+-----------
+Root        → top node, no parent
+Leaf        → node with no children
+Height      → longest path from a node DOWN to a leaf (null = 0)
+Depth       → distance from root DOWN to a node
+Subtree     → a node + all its descendants (itself is a valid tree)
+Level       → all nodes at the same depth
+
+
+================================================================
+THE CORE MENTAL MODEL — THINK IN SUBTREES
+================================================================
+
+DO NOT think: "how do I traverse the whole tree?"
+THINK:        "what does this ONE node do, given what left and right return?"
+
+Every recursive tree function follows this structure:
+
+    returnType solve(TreeNode node) {
+        // 1. BASE CASE — null node
+        if (node == null) return baseCaseValue;
+
+        // 2. RECURSE — trust the recursion
+        X left  = solve(node.left);
+        X right = solve(node.right);
+
+        // 3. COMBINE — use left + right + current node
+        return combine(left, right, node);
+    }
+
+You are responsible for ONE node's contribution.
+Delegate everything else to recursion and trust it.
+
+
+================================================================
+THE 4 TRAVERSALS
+================================================================
+
+PRE-ORDER: Root → Left → Right
+    void preOrder(TreeNode root) {
+        if (root == null) return;
+        process(root);          // root FIRST
+        preOrder(root.left);
+        preOrder(root.right);
+    }
+    Use: copy tree, serialize, process before children
+
+IN-ORDER: Left → Root → Right
+    void inOrder(TreeNode root) {
+        if (root == null) return;
+        inOrder(root.left);
+        process(root);          // root in MIDDLE
+        inOrder(root.right);
+    }
+    Use: BST → gives sorted order
+
+POST-ORDER: Left → Right → Root
+    void postOrder(TreeNode root) {
+        if (root == null) return;
+        postOrder(root.left);
+        postOrder(root.right);
+        process(root);          // root LAST
+    }
+    Use: when children must be processed before parent (height, delete)
+
+LEVEL-ORDER (BFS): Level by level using Queue
+    void levelOrder(TreeNode root) {
+        if (root == null) return;
+        Queue<TreeNode> queue = new LinkedList<>();
+        queue.offer(root);
+        while (!queue.isEmpty()) {
+            TreeNode current = queue.poll();
+            process(current);
+            if (current.left  != null) queue.offer(current.left);
+            if (current.right != null) queue.offer(current.right);
+        }
+    }
+    Use: shortest path, level-aware problems, right side view
+
+LEVEL-ORDER WITH LEVEL SEPARATION:
+    while (!queue.isEmpty()) {
+        int levelSize = queue.size();       // snapshot BEFORE processing
+        for (int i = 0; i < levelSize; i++) {
+            TreeNode current = queue.poll();
+            // process current
+            if (current.left  != null) queue.offer(current.left);
+            if (current.right != null) queue.offer(current.right);
+        }
+        // one complete level done here
+    }
+    Key: snapshot size before the loop — children added during loop
+         belong to next level and won't be counted
+
+
+================================================================
+5 CORE PATTERNS
+================================================================
+
+PATTERN 1: BOTTOM-UP RECURSION
+--------------------------------
+Collect from children, combine at current node.
+Used for: height, diameter, path sum, balanced check
+
+Height:
+    int height(TreeNode root) {
+        if (root == null) return 0;
+        return 1 + Math.max(height(root.left), height(root.right));
+    }
+
+Diameter (LC 543):
+    int diameter = 0;
+    int dfs(TreeNode root) {
+        if (root == null) return 0;
+        int left  = dfs(root.left);
+        int right = dfs(root.right);
+        diameter = Math.max(diameter, left + right);  // path through this node
+        return 1 + Math.max(left, right);             // height returned up
+    }
+    Key: diameter might not pass through root — update global max at every node
+
+
+PATTERN 2: TOP-DOWN RECURSION (pass state down)
+------------------------------------------------
+Pass information from parent to children.
+Used for: root-to-leaf paths, path sum with target, level tracking
+
+Path Sum (LC 112):
+    boolean hasPathSum(TreeNode root, int target) {
+        if (root == null) return false;
+        if (root.left == null && root.right == null) return root.val == target;
+        return hasPathSum(root.left,  target - root.val) ||
+               hasPathSum(root.right, target - root.val);
+    }
+
+
+PATTERN 3: TWO TREES SIMULTANEOUSLY
+-------------------------------------
+Two pointers moving through two trees in sync.
+Used for: same tree, symmetric tree, subtree check
+
+Same Tree (LC 100):
+    boolean isSameTree(TreeNode p, TreeNode q) {
+        if (p == null && q == null) return true;
+        if (p == null || q == null) return false;
+        return p.val == q.val
+            && isSameTree(p.left,  q.left)
+            && isSameTree(p.right, q.right);
+    }
+
+Subtree (LC 572) — use isSameTree as utility:
+    boolean isSubtree(TreeNode root, TreeNode subRoot) {
+        if (root == null) return false;
+        if (isSameTree(root, subRoot)) return true;
+        return isSubtree(root.left, subRoot) || isSubtree(root.right, subRoot);
+    }
+    Key: two different questions = two separate functions, not one messy one
+
+
+PATTERN 4: GLOBAL MAXIMUM (track across recursion)
+----------------------------------------------------
+The answer may not pass through root — must update global max at every node.
+Used for: max path sum, diameter
+
+Max Path Sum (LC 124):
+    int maxSum = Integer.MIN_VALUE;
+    int dfs(TreeNode root) {
+        if (root == null) return 0;
+        int leftGain  = Math.max(0, dfs(root.left));   // ignore if negative
+        int rightGain = Math.max(0, dfs(root.right));  // ignore if negative
+        maxSum = Math.max(maxSum, leftGain + root.val + rightGain); // path through node
+        return root.val + Math.max(leftGain, rightGain);            // return ONE direction
+    }
+    Two key insights:
+    1. Math.max(0, ...) — if subtree is negative, don't include it (treat as 0)
+    2. Track the bent path (left+root+right) globally, but return only one direction up
+
+
+PATTERN 5: CONSTRUCTION
+-------------------------
+Build tree from traversal arrays using pre-order index + inorder split.
+
+LC 105 — Build from Preorder + Inorder:
+    - preorder[preStart] is always the root
+    - find root in inorder → everything left = left subtree, right = right subtree
+    - leftSubtreeSize = inRootIndex - inStart  ← THE key calculation
+    - use HashMap for O(1) inorder lookup
+
+    TreeNode build(int[] pre, int preStart, int preEnd, int inStart, int inEnd) {
+        if (preStart > preEnd) return null;
+        int rootVal = pre[preStart];
+        int inRootIndex = map.get(rootVal);
+        int leftSize = inRootIndex - inStart;
+        TreeNode root = new TreeNode(rootVal);
+        root.left  = build(pre, preStart+1, preStart+leftSize, inStart, inRootIndex-1);
+        root.right = build(pre, preStart+leftSize+1, preEnd, inRootIndex+1, inEnd);
+        return root;
+    }
+    Time: O(n), Space: O(n)
+
+LC 297 — Serialize / Deserialize:
+    Serialize: pre-order traversal, write "N" for null nodes
+    Result: "1,2,N,N,3,N,N"
+
+    Deserialize: use a Queue of tokens, poll() each time (no index tracking)
+    TreeNode deserializeHelper(Queue<String> tokens) {
+        String token = tokens.poll();
+        if (token.equals("N")) return null;
+        TreeNode node = new TreeNode(Integer.parseInt(token));
+        node.left  = deserializeHelper(tokens);
+        node.right = deserializeHelper(tokens);
+        return node;
+    }
+    Why pre-order: root is always first → you always know what to build next
+    Why queue: consume tokens left-to-right exactly once
+
+
+================================================================
+PROBLEMS COVERED (12 total)
+================================================================
+
+EASY
+----
+LC 104 — Maximum Depth         → bottom-up, height formula
+LC 226 — Invert Binary Tree    → bottom-up, swap children post-recursion
+LC 543 — Diameter              → global max at every node, return height
+LC 100 — Same Tree             → two trees in sync
+LC 572 — Subtree               → isSameTree as utility
+LC 112 — Path Sum              → top-down, subtract from target
+LC 110 — Balanced Binary Tree  → bottom-up height, return -1 for unbalanced
+
+MEDIUM
+------
+LC 102 — Level Order Traversal → BFS + levelSize snapshot
+LC 199 — Right Side View       → BFS, take last node of each level
+LC 105 — Build from Pre+Inorder → construction, leftSubtreeSize key
+
+HARD
+----
+LC 124 — Max Path Sum          → global max, Math.max(0,...) for negatives
+LC 297 — Serialize/Deserialize → pre-order + null markers + queue of tokens
+
+
+================================================================
+COMMON INTERVIEW TRAPS
+================================================================
+
+1. Not handling null root        → always base case: if (root == null) return X
+2. Diameter/MaxPath through root → update global max at EVERY node, not just root
+3. Including negative path gain  → Math.max(0, dfs(child)) to ignore negatives
+4. Returning bent path up        → return only one direction (max child), not both
+5. One function for subtree      → separate isSameTree utility, different questions
+6. Wrong levelSize snapshot      → snapshot BEFORE the inner loop, not during
+7. Forgetting null markers       → serialize must encode nulls or structure is lost
+
+
+================================================================
+INTERVIEW TIPS
+================================================================
+
+- Draw the tree and trace before coding — always
+- State which traversal you're using and why
+- "Think in subtrees" — what does this one node return given its children?
+- When problem says "path" — ask: does it have to pass through root? (usually no)
+- Diameter and Max Path Sum share the same pattern — global max + return height/gain
+- BFS → queue. Recursion → pick pre/in/post based on when you need parent vs child info
+
+================================================================

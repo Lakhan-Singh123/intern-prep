@@ -1,0 +1,208 @@
+================================================================
+MODULE 3 — PHYSICAL AND DATA LINK LAYER
+================================================================
+
+PHYSICAL LAYER
+--------------
+One job: convert bits (0s and 1s) into signals that travel through medium.
+  Copper wire  → electrical signals (voltage changes)
+  Fiber optic  → light pulses
+  Wi-Fi        → radio waves
+
+No addresses, no error checking, no intelligence. Just raw bits.
+
+Transmission Media (know the difference, not the details):
+  Twisted Pair  → most common (office/home Ethernet), Cat5e=1Gbps, Cat6=10Gbps, ~100m max
+  Fiber Optic   → light signals, fastest (100 Tbps), longest range, backbone networks
+  Coaxial       → legacy (cable TV), mostly replaced
+
+Interview: "Fiber = fastest + longest. Twisted pair = most common LAN. Coaxial = legacy."
+
+
+FULL DUPLEX vs HALF DUPLEX vs SIMPLEX
+--------------------------------------
+Simplex     → one direction only (TV broadcast)
+Half Duplex → both directions but NOT simultaneously (walkie-talkie)
+              Old Ethernet with hubs → half duplex (shared wire)
+Full Duplex → both directions simultaneously (phone call)
+              Modern Ethernet with switches → full duplex (dedicated wire per device)
+
+
+MAC ADDRESS
+-----------
+Every NIC has a MAC address burned in at manufacture. Never changes.
+48 bits, written as 6 hex pairs: AA:BB:CC:DD:EE:FF
+
+  AA:BB:CC   =  OUI (manufacturer identifier, first 3 bytes)
+  DD:EE:FF   =  Device identifier (last 3 bytes)
+
+MAC vs IP:
+  MAC → physical, never changes, used for LOCAL delivery (Layer 2, one hop)
+  IP  → logical, can change, used for routing across networks (Layer 3, end-to-end)
+
+How a Switch Uses MAC Table (CAM Table):
+  Switch maintains: MAC Address → Port number
+    Port 1 → AA:BB:CC:11:22:33  (laptop)
+    Port 3 → DD:EE:FF:44:55:66  (router)
+
+  Frame arrives at switch:
+    1. Read SOURCE MAC → record in table (learning)
+    2. Read DESTINATION MAC → look up port
+    3. If found → send to that port only (efficient)
+    4. If NOT found → FLOOD to all ports (like a hub), wait to learn
+
+  Why port table needed:
+    MAC address alone doesn't tell switch which PHYSICAL PORT the device is on.
+    Without table → must flood all ports (defeats purpose of switch).
+
+
+★ ARP vs SWITCH MAC TABLE — Key Distinction
+--------------------------------------------
+Both involve MACs but completely different:
+
+  ARP Table (on YOUR DEVICE):          Switch MAC Table (on SWITCH):
+  Maps: IP → MAC                       Maps: MAC → Port number
+  Purpose: find MAC before             Purpose: find which port
+           creating a frame                     to send frame out of
+  Who uses: your laptop                Who uses: the switch
+  Question: "what's the MAC            Question: "which port does
+             of this IP?"               this MAC live on?"
+
+  ARP happens BEFORE frame is created.
+  Switch MAC table used AFTER frame arrives at switch.
+  Sequential steps, not the same thing.
+
+Analogy:
+  ARP          = contacts app (name → phone number)
+  Switch table = post office (address → mailbox/port)
+
+
+★ DOES YOUR DEVICE FIND ALL ROUTERS BEFORE SENDING?
+-----------------------------------------------------
+NO. Your device only knows ONE hop ahead — the default gateway (first router).
+
+Your laptop:
+  "8.8.8.8 is not on my local network → send to gateway 192.168.1.1"
+  Does ARP only for 192.168.1.1. Done.
+
+After that:
+  Each router independently decides the NEXT hop.
+  Router 1 → Router 2 → ... → Google
+  Your laptop is completely out of the picture after the first hop.
+
+This is the beauty of packet switching — no device needs the full path in advance.
+Each router does its OWN ARP for the next hop's MAC.
+
+
+ERROR DETECTION
+---------------
+Data gets corrupted in transit. Three methods to detect this:
+
+Parity Bit (simplest, least reliable):
+  Add one extra bit so total 1s = even (even parity) or odd (odd parity)
+  Problem: if TWO bits flip, parity still correct → misses double errors
+
+Checksum (used in TCP/UDP):
+  Add up all bytes → send sum with data
+  Receiver adds up bytes → compare with checksum → mismatch = error
+
+CRC — Cyclic Redundancy Check (most reliable, used in Ethernet):
+  Treats data as polynomial, divides by fixed polynomial, sends remainder
+  Detects burst errors (multiple consecutive bit flips)
+  Most reliable of the three
+
+IMPORTANT: Error detection only — they tell you AN error occurred.
+           They do NOT fix the error. Retransmission = TCP's job (Layer 4).
+
+
+CSMA — MEDIUM ACCESS CONTROL
+------------------------------
+Problem: multiple devices sharing one medium → signals collide.
+
+CSMA = Carrier Sense Multiple Access
+"Carrier Sense" = listen before you transmit.
+
+CSMA/CD — Collision DETECTION (wired Ethernet, old hubs):
+  1. Sense — is wire free?
+  2. If free → transmit
+  3. While transmitting → keep listening for collision
+  4. Collision detected → send JAM signal, stop, wait RANDOM backoff time, retry
+  Random backoff: prevents both devices retrying at same time (would collide again)
+  Modern switches: each device has dedicated wire → no collisions → CSMA/CD not needed
+
+CSMA/CA — Collision AVOIDANCE (Wi-Fi):
+  Can't detect collision while transmitting on radio → must AVOID instead
+  1. Sense — is channel free?
+  2. If free → wait ADDITIONAL random backoff time anyway
+  3. Transmit
+  4. Wait for ACK → no ACK = collision assumed → increase backoff, retry
+  Random wait even when free: another device might transmit at exact same moment
+
+  CSMA/CD vs CSMA/CA:
+    CD: detect after, no ACK, wired, shared wire
+    CA: avoid before, needs ACK, wireless, shared radio
+
+
+ARP — ADDRESS RESOLUTION PROTOCOL
+-----------------------------------
+Problem: you know the next hop's IP, but need its MAC to create a frame.
+Solution: ARP.
+
+ARP Request (broadcast):
+  Your device broadcasts to entire LAN:
+  "Who has IP 192.168.1.1? Tell me your MAC. My MAC is XX, my IP is YY"
+  Destination MAC in frame: FF:FF:FF:FF:FF:FF (everyone reads this)
+
+ARP Reply (unicast):
+  Device with that IP responds directly back:
+  "I have 192.168.1.1. My MAC is DD:EE:FF:44:55:66"
+
+ARP Cache:
+  Your device stores: 192.168.1.1 → DD:EE:FF:44:55:66 (expires after few minutes)
+  Cache hit next time → no broadcast needed
+
+Full flow:
+  Laptop → ARP broadcast → Switch floods to all ports → Router responds
+  Router reply → Switch → Laptop → Laptop caches MAC → creates frame → sends
+
+ARP Spoofing (Security Attack):
+  Attacker sends fake ARP reply: "192.168.1.1 is at MY MAC"
+  Victim's cache poisoned → all traffic goes to attacker → MITM
+  Prevention: Dynamic ARP Inspection (DAI) on managed switches
+
+
+STP — SPANNING TREE PROTOCOL (brief)
+--------------------------------------
+Problem: switches connected in loops for redundancy → broadcast storms
+  Broadcast frame loops forever → multiplies → kills network
+
+Solution: STP
+  1. Elect Root Bridge (switch with lowest Bridge ID)
+  2. Each switch finds shortest path to root
+  3. Block redundant ports (disable loops)
+  4. If active link fails → STP recalculates, unblocks a port
+
+Interview level: just know what STP is and why it exists.
+
+
+QUICK REFERENCE
+---------------
+Physical layer    → bits to signals, no intelligence
+Fiber optic       → fastest, longest, backbone
+Full duplex       → both directions simultaneously (switches)
+Half duplex       → one at a time (hubs)
+MAC address       → 48-bit, hex, burned in, never changes
+OUI               → first 3 bytes = manufacturer
+Switch MAC table  → MAC → Port (which port to send frame out of)
+Flooding          → switch sends all ports when MAC unknown
+ARP               → resolves IP → MAC via broadcast + unicast reply
+ARP cache         → stores IP→MAC mapping temporarily
+ARP spoofing      → fake ARP replies → MITM attack
+CSMA/CD           → wired, detect collision, random backoff
+CSMA/CA           → Wi-Fi, avoid collision, random wait + ACK
+Parity bit        → simplest, misses double errors
+Checksum          → sum of bytes, used in TCP/UDP
+CRC               → most reliable, Ethernet, burst error detection
+Error detection   → tells you error occurred, does NOT fix it
+STP               → blocks redundant switch links, prevents loops
+================================================================

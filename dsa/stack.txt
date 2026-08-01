@@ -1,0 +1,232 @@
+================================================================
+STACK — Interview Prep Notes
+================================================================
+
+CORE CONCEPT
+------------
+LIFO — Last In, First Out
+Think: Ctrl+Z (undo) — undoes the most recent action first
+Think: Function call stack — last function called, first to return
+
+JAVA — ALWAYS USE THIS (never Stack<> class — it's legacy/slow)
+----------------------------------------------------------------
+Deque<Integer> stack = new ArrayDeque<>();
+
+stack.push(10);     // add to top
+stack.pop();        // remove from top (throws exception if empty)
+stack.peek();       // look at top, don't remove
+stack.isEmpty();
+stack.size();
+
+
+================================================================
+5 CORE PATTERNS
+================================================================
+
+PATTERN 1: MATCHING / VALIDITY
+--------------------------------
+Used for: parentheses, bracket matching, nested structures
+
+Logic:
+- Opener → push onto stack
+- Closer → check if top matches → if yes pop, if no return false
+- End of string → stack must be empty (no unclosed openers)
+
+Traps:
+- Check stack.isEmpty() BEFORE peek/pop (NPE otherwise)
+- Check stack.isEmpty() AFTER loop (unclosed openers = invalid)
+
+Template:
+    for (char ch : s.toCharArray()) {
+        if (isOpener(ch)) {
+            stack.push(ch);
+        } else {
+            if (stack.isEmpty()) return false;
+            char top = stack.pop();
+            if (!matches(top, ch)) return false;
+        }
+    }
+    return stack.isEmpty();
+
+LC 20 — Valid Parentheses
+  Time: O(n), Space: O(n)
+
+
+PATTERN 2: MONOTONIC STACK — NEXT GREATER ELEMENT
+---------------------------------------------------
+Used for: next greater/smaller element, daily temperatures
+
+Key insight: stack stores INDICES (not values) — need position to compute gaps
+
+Decreasing stack → finds next GREATER element
+  When new element > top → pop (top found its answer) → process
+
+Increasing stack → finds next SMALLER element
+  When new element < top → pop (top found its answer) → process
+
+Template (next greater):
+    Deque<Integer> stack = new ArrayDeque<>();  // stores indices
+    for (int i = 0; i < nums.length; i++) {
+        while (!stack.isEmpty() && nums[i] > nums[stack.peek()]) {
+            int index = stack.pop();
+            result[index] = i - index;  // or nums[i], depends on problem
+        }
+        stack.push(i);
+    }
+    // drain remaining — they never found a greater element
+
+TRAP: Store indices, not values. Always.
+TRAP: Drain the stack after the loop — remaining elements have no answer.
+
+LC 739 — Daily Temperatures
+  Pattern: Decreasing monotonic stack (next greater temperature)
+  Time: O(n), Space: O(n)
+
+LC 496 — Next Greater Element I
+  Pattern: Monotonic stack on nums2, store results in HashMap, lookup nums1
+  Time: O(n+m), Space: O(n)
+
+LC 402 — Remove K Digits
+  Pattern: Increasing monotonic stack (keep smallest digits at front)
+  Key: pop larger digit when smaller arrives, remove from end if k remaining
+  Time: O(n), Space: O(n)
+
+
+PATTERN 3: MIN STACK (O(1) getMin)
+------------------------------------
+Problem: normal stack gives O(n) for minimum (must scan)
+Fix: maintain a parallel minStack that tracks current minimum at every level
+
+Push: push val to mainStack, push min(val, minStack.peek()) to minStack
+Pop: pop both stacks together
+GetMin: minStack.peek()
+
+    void push(int val) {
+        mainStack.push(val);
+        int currentMin = minStack.isEmpty() ? val : Math.min(val, minStack.peek());
+        minStack.push(currentMin);
+    }
+    void pop() {
+        mainStack.pop();
+        minStack.pop();
+    }
+    int getMin() { return minStack.peek(); }
+
+LC 155 — Min Stack
+  Time: O(1) all operations, Space: O(n)
+
+
+PATTERN 4: HISTOGRAM / AREA (Largest Rectangle)
+-------------------------------------------------
+Used for: largest rectangle in histogram, maximal rectangle in matrix
+
+Key question for each bar: "How far left and right can this bar extend?"
+Answer: until it hits a bar shorter than itself
+
+Use an INCREASING monotonic stack.
+When current bar < top → top bar cannot extend further right → compute its area
+
+Width formula when popping index idx:
+  rightBoundary = i  (current index — the bar that caused the pop)
+  leftBoundary  = stack.peek() after pop (nearest taller bar on left)
+  width = rightBoundary - leftBoundary - 1
+  If stack empty after pop → leftBoundary = -1 → width = i
+
+    Deque<Integer> stack = new ArrayDeque<>();
+    for (int i = 0; i <= heights.length; i++) {
+        int currentHeight = (i == heights.length) ? 0 : heights[i];
+        while (!stack.isEmpty() && currentHeight < heights[stack.peek()]) {
+            int height = heights[stack.pop()];
+            int width = stack.isEmpty() ? i : i - stack.peek() - 1;
+            maxArea = Math.max(maxArea, height * width);
+        }
+        stack.push(i);
+    }
+
+Trick: append a 0-height bar at the end (i == heights.length → height = 0)
+       forces all remaining bars to be popped and processed
+
+LC 84 — Largest Rectangle in Histogram
+  Time: O(n), Space: O(n)
+
+
+PATTERN 5: MONOTONIC DEQUE (Sliding Window Maximum)
+-----------------------------------------------------
+(See queue.txt for full pattern — this belongs to deque)
+
+LC 239 — Sliding Window Maximum
+  Time: O(n), Space: O(k)
+
+
+================================================================
+PROBLEMS COVERED (8 stack problems)
+================================================================
+
+EASY
+----
+LC 20  — Valid Parentheses
+  Pattern: Matching
+  Time: O(n), Space: O(n)
+
+LC 155 — Min Stack
+  Pattern: Parallel minStack
+  Time: O(1) all ops, Space: O(n)
+
+LC 232 — Implement Queue using Stacks
+  Pattern: Two stacks (inStack + outStack), pour only when outStack empty
+  Time: O(1) amortized, Space: O(n)
+  (see queue.txt)
+
+LC 225 — Implement Stack using Queues
+  Pattern: On each push, rotate queue so new element is at front
+  Time: O(n) push, O(1) pop/top, Space: O(n)
+  (see queue.txt)
+
+MEDIUM
+------
+LC 739 — Daily Temperatures
+  Pattern: Decreasing monotonic stack (store indices)
+  Time: O(n), Space: O(n)
+
+LC 496 — Next Greater Element I
+  Pattern: Monotonic stack on nums2 + HashMap for lookup
+  Time: O(n+m), Space: O(n)
+
+LC 402 — Remove K Digits
+  Pattern: Increasing monotonic stack
+  Key: greedily remove larger digit before smaller, handle leading zeros
+  Time: O(n), Space: O(n)
+
+HARD
+----
+LC 84  — Largest Rectangle in Histogram
+  Pattern: Increasing monotonic stack
+  Key: append sentinel 0 at end, width = right - left - 1
+  Time: O(n), Space: O(n)
+
+
+================================================================
+COMMON INTERVIEW TRAPS
+================================================================
+
+1. Using Stack<> class         → Use Deque<> with ArrayDeque instead
+2. pop/peek on empty stack     → Always check isEmpty() first
+3. Storing values not indices  → Monotonic stack needs indices for distance calc
+4. Wrong monotonic direction   → Decreasing = next greater, Increasing = next smaller
+5. Not draining after loop     → Remaining elements in stack have no answer yet
+6. Forgetting sentinel in LC84 → Append height=0 at end to flush remaining bars
+7. Pouring stacks every time   → In LC 232, only pour when outStack is empty
+
+
+================================================================
+INTERVIEW TIPS
+================================================================
+
+- When you see "next greater/smaller" → immediately think monotonic stack
+- When you see "O(1) getMin/getMax" → immediately think parallel tracking stack
+- When you see nested/matching structure → immediately think stack
+- Always store INDICES in monotonic stacks, look up values via array
+- Drain the stack after the main loop in monotonic stack problems
+- State your pattern out loud before coding — shows structured thinking
+
+================================================================

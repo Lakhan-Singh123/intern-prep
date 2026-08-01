@@ -1,0 +1,244 @@
+================================================================
+QUEUE & DEQUE — Interview Prep Notes
+================================================================
+
+CORE CONCEPTS
+-------------
+Queue  → FIFO (First In, First Out) — like a printer queue
+Deque  → Double-Ended Queue — add/remove from both front and back
+         Can act as stack (one end) or queue (both ends) or both
+
+JAVA ESSENTIALS
+---------------
+// Queue — FIFO
+Queue<Integer> queue = new LinkedList<>();
+queue.offer(10);       // add to back   (prefer over add — no exception)
+queue.poll();          // remove front  (prefer over remove — returns null if empty)
+queue.peek();          // look at front, don't remove
+queue.isEmpty();
+
+// Deque — double-ended
+Deque<Integer> deque = new ArrayDeque<>();
+deque.addFirst(10);    // add to front
+deque.addLast(20);     // add to back
+deque.removeFirst();   // remove from front
+deque.removeLast();    // remove from back
+deque.peekFirst();     // look at front
+deque.peekLast();      // look at back
+deque.isEmpty();
+
+Rule: use offer/poll/peek (not add/remove) — they return null instead of throwing
+
+
+================================================================
+WHEN TO USE WHICH STRUCTURE
+================================================================
+
+Stack          → LIFO — most recent unresolved thing
+                 (matching, next greater/smaller, undo)
+
+Queue          → FIFO — process in arrival order
+                 (BFS, level-by-level traversal, scheduling)
+
+Deque          → Both ends — sliding window max/min
+                 (need to remove from front AND back)
+
+Priority Queue → Global min/max as data changes
+                 (top-K, Dijkstra, merge K sorted lists)
+
+One-question filter:
+  "Do I need the most RECENT thing or the most IMPORTANT thing?"
+  Most recent   → Stack
+  Most important (global min/max) → Priority Queue
+  Arrival order → Queue
+  Both ends of a window → Deque
+
+
+================================================================
+3 CORE PATTERNS
+================================================================
+
+PATTERN 1: BFS WITH QUEUE
+--------------------------
+Queue drives level-by-level exploration — trees, graphs, grids
+Every BFS follows this exact template:
+
+    Queue<Node> queue = new LinkedList<>();
+    queue.offer(startNode);
+    Set<Node> visited = new HashSet<>();
+    visited.add(startNode);
+
+    while (!queue.isEmpty()) {
+        Node current = queue.poll();
+        // process current node
+
+        for (Node neighbor : current.neighbors) {
+            if (!visited.contains(neighbor)) {
+                visited.add(neighbor);
+                queue.offer(neighbor);
+            }
+        }
+    }
+
+You will use this template identically in Trees and Graphs.
+Memorize it cold.
+
+
+PATTERN 2: SIMULATE ONE STRUCTURE WITH ANOTHER
+-----------------------------------------------
+
+LC 232 — Implement Queue using Stacks
+  Two stacks: inStack (push) + outStack (pop/peek)
+  Key insight: a stack reverses order. Two stacks = double reverse = original order.
+
+  Push  → always push to inStack
+  Pop   → if outStack empty, pour ALL of inStack into outStack, then pop
+  Peek  → same as pop logic, just peek instead
+
+  TRAP: only pour when outStack is EMPTY — not every time
+        pouring every time breaks FIFO order
+
+  WHY amortized O(1): each element is pushed once and poured once total
+
+    void push(int x) { inStack.push(x); }
+
+    int pop() {
+        refill();
+        return outStack.pop();
+    }
+
+    void refill() {
+        if (outStack.isEmpty()) {
+            while (!inStack.isEmpty()) outStack.push(inStack.pop());
+        }
+    }
+
+  Time: O(1) amortized per operation, Space: O(n)
+
+
+LC 225 — Implement Stack using Queues
+  Single queue. After each push, rotate the queue so new element sits at front.
+
+  Push(x): offer(x), then rotate size-1 elements to the back
+  Pop/Top: just poll/peek (new element is always at front)
+
+    void push(int x) {
+        queue.offer(x);
+        for (int i = 0; i < queue.size() - 1; i++) {
+            queue.offer(queue.poll());
+        }
+    }
+
+  Time: O(n) push, O(1) pop/top/empty, Space: O(n)
+
+
+PATTERN 3: MONOTONIC DEQUE — SLIDING WINDOW MAX/MIN
+-----------------------------------------------------
+
+LC 239 — Sliding Window Maximum
+
+Problem: for each window of size k, find the maximum element
+Brute force: O(nk) — scan every window
+
+Why deque: you need O(1) access to both ends simultaneously
+  - Remove from BACK: evict smaller elements that can never be max
+  - Remove from FRONT: evict elements that left the window
+  - Read from FRONT: current window max
+
+Maintain a DECREASING deque (front = largest, back = smallest in window)
+Store INDICES (not values) — need index to check if element left window
+
+Two rules:
+  1. Before adding index i:
+     pop from BACK while nums[deque.peekLast()] <= nums[i]
+     (smaller+older elements are useless)
+  2. Before reading:
+     pop from FRONT while deque.peekFirst() <= i - k
+     (index has left the window)
+  3. Record result when i >= k-1 (window is full)
+
+    Deque<Integer> deque = new ArrayDeque<>();  // stores indices
+    int[] result = new int[nums.length - k + 1];
+    int resultIndex = 0;
+
+    for (int i = 0; i < nums.length; i++) {
+        // evict out-of-window from front
+        while (!deque.isEmpty() && deque.peekFirst() <= i - k) {
+            deque.removeFirst();
+        }
+        // evict smaller elements from back
+        while (!deque.isEmpty() && nums[deque.peekLast()] <= nums[i]) {
+            deque.removeLast();
+        }
+        deque.addLast(i);
+
+        if (i >= k - 1) {
+            result[resultIndex++] = nums[deque.peekFirst()];
+        }
+    }
+    return result;
+
+  Time: O(n) — each element enters/leaves deque at most once
+  Space: O(k)
+
+Alternative — Priority Queue approach (simpler, suboptimal):
+  Store {value, index} in max-heap
+  When reading max, lazily evict out-of-window elements from top
+
+    PriorityQueue<int[]> maxHeap = new PriorityQueue<>((a, b) -> b[0] - a[0]);
+    for (int i = 0; i < nums.length; i++) {
+        maxHeap.offer(new int[]{nums[i], i});
+        while (maxHeap.peek()[1] <= i - k) maxHeap.poll();
+        if (i >= k - 1) result[resultIndex++] = maxHeap.peek()[0];
+    }
+
+  Time: O(n log n), Space: O(n)
+  Use this as first pass in interview, then optimize to deque
+
+
+================================================================
+PROBLEMS COVERED (4 queue problems)
+================================================================
+
+EASY
+----
+LC 232 — Implement Queue using Stacks
+  Pattern: Two stacks, pour only when outStack is empty
+  Time: O(1) amortized, Space: O(n)
+
+LC 225 — Implement Stack using Queues
+  Pattern: Rotate queue after every push
+  Time: O(n) push / O(1) others, Space: O(n)
+
+HARD
+----
+LC 239 — Sliding Window Maximum
+  Pattern: Monotonic deque (decreasing), store indices
+  Time: O(n), Space: O(k)
+  Alternative: PQ with lazy eviction — O(n log n)
+
+
+================================================================
+COMMON TRAPS
+================================================================
+
+1. poll/peek on empty queue        → always check isEmpty() first
+2. Storing values not indices      → deque needs indices to check window bounds
+3. Wrong eviction boundary         → peekFirst() <= i - k  (not <)
+4. Pouring stacks every operation  → only pour in LC 232 when outStack is empty
+5. Recording result before window  → only record when i >= k - 1
+6. Not using offer/poll/peek       → add/remove throw exceptions on empty
+
+
+================================================================
+INTERVIEW TIPS
+================================================================
+
+- Sliding window max/min with O(n) → always monotonic deque
+- Sliding window max/min, O(n log n) acceptable → PQ with lazy eviction
+- BFS → queue, always
+- Need FIFO? queue. Need LIFO? stack. Need both ends? deque.
+- In interviews, PQ approach for LC 239 is a valid starting point —
+  mention the deque optimization and its O(n) reason afterward
+
+================================================================

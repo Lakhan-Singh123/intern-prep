@@ -1,0 +1,430 @@
+================================================================
+GRAPHS — Interview Prep Notes
+================================================================
+
+REVISION PLAN (do this before Microsoft interview):
+  🔴 HIGHEST PRIORITY — re-attempt from scratch:
+      LC 417 — Pacific Atlantic Water Flow
+      LC 684 — Redundant Connection (Union Find — path compression + union by rank)
+      LC 127 — Word Ladder
+      LC 787 — Cheapest Flights Within K Stops
+
+  🟡 QUICK REVISION — re-read solution + trace through once:
+      LC 542 — 01 Matrix
+      LC 133 — Clone Graph
+      LC 130 — Surrounded Regions
+      LC 743 — Network Delay Time (Dijkstra)
+
+  🟢 COMFORTABLE — can solve again without help:
+      LC 200 — Number of Islands
+      LC 733 — Flood Fill
+      LC 994 — Rotting Oranges
+      LC 207 — Course Schedule
+      LC 210 — Course Schedule II
+
+================================================================
+
+CORE CONCEPTS
+-------------
+Node (Vertex) — a point in the graph
+Edge           — connection between two nodes
+Directed       — edge has direction (u→v ≠ v→u)
+Undirected     — edge goes both ways
+Weighted       — edges have costs/distances
+Cyclic         — contains a cycle
+DAG            — Directed Acyclic Graph (no cycles, used for scheduling)
+Component      — group of nodes all connected to each other
+
+
+================================================================
+GRAPH REPRESENTATION
+================================================================
+
+ADJACENCY LIST — use this for almost all problems
+    List<List<Integer>> graph = new ArrayList<>();
+    for (int i = 0; i <= n; i++) graph.add(new ArrayList<>());
+
+    graph.get(u).add(v);           // directed edge u→v
+    graph.get(v).add(u);           // add this for undirected
+
+    // Weighted edge
+    List<List<int[]>> graph = ...;
+    graph.get(u).add(new int[]{v, weight});
+
+    Space: O(V+E) — only stores existing edges
+
+ADJACENCY MATRIX — use when edge lookup O(1) is needed
+    int[][] matrix = new int[n+1][n+1];
+    matrix[u][v] = 1;
+
+    Space: O(V²) — bad for sparse graphs
+
+
+================================================================
+BFS — BREADTH FIRST SEARCH
+================================================================
+
+Use when: shortest path (unweighted), level-by-level, minimum steps
+
+Template:
+    boolean[] visited = new boolean[n+1];
+    Queue<Integer> queue = new LinkedList<>();
+    visited[start] = true;      // mark BEFORE adding to queue
+    queue.offer(start);
+
+    while (!queue.isEmpty()) {
+        int node = queue.poll();
+        // process node
+
+        for (int neighbour : graph.get(node)) {
+            if (!visited[neighbour]) {
+                visited[neighbour] = true;
+                queue.offer(neighbour);
+            }
+        }
+    }
+
+WHY mark before adding: prevents adding same node to queue multiple times
+
+BFS Shortest Path:
+    int[] dist = new int[n+1];
+    Arrays.fill(dist, -1);
+    dist[start] = 0;
+    // instead of visited, use dist[neighbour] == -1 as check
+    dist[neighbour] = dist[node] + 1;
+
+MULTI-SOURCE BFS — start from ALL sources simultaneously
+    Add ALL source nodes to queue before starting the loop
+    Used for: 01 Matrix, Rotting Oranges
+    WHY: running BFS from each source separately = O(n²). Multi-source = O(n).
+
+Time: O(V+E), Space: O(V)
+
+
+================================================================
+DFS — DEPTH FIRST SEARCH
+================================================================
+
+Use when: cycle detection, components, topological sort, exhaustive search
+
+Recursive Template:
+    boolean[] visited = new boolean[n+1];
+
+    void dfs(int node) {
+        visited[node] = true;
+        // process node
+
+        for (int neighbour : graph.get(node)) {
+            if (!visited[neighbour]) dfs(neighbour);
+        }
+    }
+
+Time: O(V+E), Space: O(V) recursion stack
+
+
+================================================================
+GRID AS GRAPH — most common interview form
+================================================================
+
+Cell (row, col) = node. Adjacent cells = neighbours.
+
+int[][] directions = {{0,1},{0,-1},{1,0},{-1,0}};
+
+void dfs(int[][] grid, boolean[][] visited, int row, int col) {
+    if (row < 0 || row >= grid.length ||
+        col < 0 || col >= grid[0].length ||
+        visited[row][col] || grid[row][col] == 0) return;
+
+    visited[row][col] = true;
+    for (int[] dir : directions)
+        dfs(grid, visited, row+dir[0], col+dir[1]);
+}
+
+TRICK: modify grid in-place instead of separate visited array
+    grid[row][col] = 0;   // mark visited by overwriting (if grid is reusable)
+    Learnt from: Number of Islands
+
+
+================================================================
+6 CORE PATTERNS
+================================================================
+
+PATTERN 1: CONNECTED COMPONENTS / FLOOD FILL
+---------------------------------------------
+Count or label disconnected groups.
+Run DFS/BFS from every unvisited node. Each call = one component.
+
+    int components = 0;
+    for (int i = 0; i < n; i++) {
+        if (!visited[i]) { dfs(i); components++; }
+    }
+
+LC 200 — Number of Islands, LC 733 — Flood Fill
+
+
+PATTERN 2: MULTI-SOURCE BFS
+-----------------------------
+When you need shortest distance FROM multiple sources simultaneously.
+Add ALL sources to queue first, then run BFS once.
+
+    for (each source cell) queue.offer(source), visited[source]=true;
+    // then standard BFS
+
+LC 542 — 01 Matrix, LC 994 — Rotting Oranges
+
+
+PATTERN 3: CYCLE DETECTION
+----------------------------
+Undirected — DFS with parent tracking:
+    boolean dfs(int node, int parent) {
+        visited[node] = true;
+        for (int nb : graph.get(node)) {
+            if (!visited[nb]) { if (dfs(nb, node)) return true; }
+            else if (nb != parent) return true;  // back edge = cycle
+        }
+        return false;
+    }
+
+Directed — DFS with inStack (recursion stack):
+    boolean dfs(int node) {
+        visited[node] = true; inStack[node] = true;
+        for (int nb : graph.get(node)) {
+            if (!visited[nb] && dfs(nb)) return true;
+            else if (inStack[nb]) return true;  // back edge in directed
+        }
+        inStack[node] = false;  // remove on backtrack
+        return false;
+    }
+
+LC 207 — Course Schedule
+
+
+PATTERN 4: TOPOLOGICAL SORT (Kahn's Algorithm)
+------------------------------------------------
+Linear ordering of DAG nodes. Only works if no cycle exists.
+
+Step 1: calculate inDegree of every node
+Step 2: add all inDegree=0 nodes to queue
+Step 3: poll → add to result → decrease neighbours' inDegree
+Step 4: if neighbour inDegree becomes 0, add to queue
+Step 5: if result.size() < n → cycle exists
+
+    int[] inDegree = new int[n];
+    for (int u : nodes) for (int v : graph.get(u)) inDegree[v]++;
+
+    Queue<Integer> queue = new LinkedList<>();
+    for (int i = 0; i < n; i++) if (inDegree[i]==0) queue.offer(i);
+
+    List<Integer> order = new ArrayList<>();
+    while (!queue.isEmpty()) {
+        int node = queue.poll();
+        order.add(node);
+        for (int nb : graph.get(node))
+            if (--inDegree[nb] == 0) queue.offer(nb);
+    }
+    return order.size() == n ? order : new int[]{};
+
+LC 210 — Course Schedule II
+Time: O(V+E), Space: O(V)
+
+
+PATTERN 5: UNION FIND (DSU) — 🔴 revise path compression + union by rank
+--------------------------------------------------------------------------
+Tracks connected components. Detects cycle when union returns false.
+
+    int[] parent, rank;
+
+    void init(int n) {
+        parent = new int[n];
+        rank = new int[n];
+        for (int i=0; i<n; i++) parent[i] = i;
+    }
+
+    int find(int x) {
+        if (parent[x] != x) parent[x] = find(parent[x]);  // path compression
+        return parent[x];
+    }
+
+    boolean union(int x, int y) {
+        int rx = find(x), ry = find(y);
+        if (rx == ry) return false;  // already connected = adding edge = CYCLE
+        if (rank[rx] < rank[ry]) parent[rx] = ry;
+        else if (rank[rx] > rank[ry]) parent[ry] = rx;
+        else { parent[ry] = rx; rank[rx]++; }
+        return true;
+    }
+
+Path compression: makes every node point directly to root → nearly O(1) per op
+Union by rank: always attach smaller tree under larger → keeps tree flat
+
+LC 684 — Redundant Connection
+Time: O(α(n)) ≈ O(1) per operation
+
+
+PATTERN 6: DIJKSTRA (Shortest Path — Weighted)
+------------------------------------------------
+BFS works for unweighted. Dijkstra for non-negative weighted graphs.
+Uses min-heap to always process closest unvisited node.
+
+    int[] dist = new int[n];
+    Arrays.fill(dist, Integer.MAX_VALUE);
+    dist[src] = 0;
+
+    PriorityQueue<int[]> pq = new PriorityQueue<>((a,b) -> a[0]-b[0]); // {dist, node}
+    pq.offer(new int[]{0, src});
+
+    while (!pq.isEmpty()) {
+        int[] curr = pq.poll();
+        int d = curr[0], node = curr[1];
+        if (d > dist[node]) continue;  // stale entry — skip (important!)
+
+        for (int[] edge : graph.get(node)) {
+            int nb = edge[0], w = edge[1];
+            if (dist[node] + w < dist[nb]) {
+                dist[nb] = dist[node] + w;
+                pq.offer(new int[]{dist[nb], nb});
+            }
+        }
+    }
+
+WHY skip stale entries: heap can have outdated {dist, node} pairs from before
+a shorter path was found. If d > dist[node], we already found a better path.
+
+Does NOT work with negative weights.
+
+LC 743 — Network Delay Time
+Time: O((V+E) log V), Space: O(V)
+
+
+================================================================
+SPECIAL PROBLEMS — KEY INSIGHTS
+================================================================
+
+LC 130 — Surrounded Regions
+  WRONG intuition: check every region separately
+  RIGHT approach: DFS from all boundary 'O's, mark as safe
+  Then flip all remaining 'O's to 'X' — they are surrounded
+  Insight: instead of finding captured regions, find UN-captured ones
+
+LC 417 — Pacific Atlantic Water Flow 🔴
+  WRONG intuition: simulate water flow from each cell downward
+  RIGHT approach: reverse direction — DFS/BFS from ocean boundaries inward
+  Pacific: DFS from top row + left col
+  Atlantic: DFS from bottom row + right col
+  Answer: cells reachable by BOTH
+
+LC 127 — Word Ladder 🔴
+  Key insight: each word = node, one-letter change = edge (implicit graph)
+  Don't build explicit graph — generate neighbours on the fly
+  Replace each char with a-z, check if new word in wordSet
+  BFS gives minimum transformations
+  Optimise: bidirectional BFS from both ends
+
+LC 787 — Cheapest Flights Within K Stops 🔴
+  WHY standard Dijkstra fails: it ignores stop count constraint
+  State = (cost, node, stops_remaining)
+  Use BFS with K+1 levels OR modified Dijkstra with {cost, node, stops}
+  Don't skip a node just because you visited it — a longer path with fewer
+  stops might be valid later
+
+LC 133 — Clone Graph
+  Lazy node creation: create clone when you first encounter the node
+  HashMap<original, clone> prevents infinite loops in cyclic graphs
+
+
+================================================================
+★ MASTER SIGNAL TABLE — PATTERN RECOGNITION
+================================================================
+
+When you see this in a problem...              → Think this pattern/algorithm
+
+"number of islands / connected regions"        → DFS/BFS components
+"flood fill / spread from a cell"              → DFS on grid
+"shortest distance from every cell to X"       → Multi-source BFS from all X cells
+"all rotten/infected cells spread each minute" → Multi-source BFS (level = minute)
+"can you finish all courses / tasks in order"  → Topological sort + cycle detection
+"find order to complete tasks with dependency" → Kahn's topological sort
+"is there a cycle in directed graph"           → DFS + inStack (recursion stack)
+"is there a cycle in undirected graph"         → DFS + parent OR Union Find
+"are these two nodes connected"                → Union Find or BFS/DFS
+"minimum spanning tree / connect all nodes"    → Kruskal (Union Find) or Prim
+"shortest path, all edges equal weight"        → BFS
+"shortest path, weighted edges (≥0)"           → Dijkstra
+"cheapest path with at most K stops"           → Modified Dijkstra or BFS with state
+"minimum time/cost to reach all nodes"         → Dijkstra from source
+"word transformation, minimum steps"           → Implicit graph BFS (Word Ladder)
+"find redundant / extra edge"                  → Union Find (edge causing cycle)
+"regions captured / surrounded"                → DFS from boundary (reverse logic)
+"water flow / cells reaching multiple targets" → Reverse DFS from each target
+
+★ DISGUISED GRAPH SIGNALS (story hides the graph):
+  "robots in line, restore sorted order"       → NOT graph → n - LIS (see dp-1d)
+  "word transformation A → B"                  → Each word = node, BFS = min steps
+  "infection/fire spreading on grid"            → Multi-source BFS
+  "prerequisite chains"                         → Topological sort
+  "friend groups / social clusters"             → Connected components
+  "detect if network has redundant connection"  → Union Find
+
+★ REVERSE THINKING SIGNALS (problem feels backwards):
+  "which cells can reach boundary X"           → DFS FROM boundary X inward
+  "which cells are NOT captured"               → Find safe cells from boundary
+  "water that can reach BOTH oceans"           → DFS from each ocean inward, intersect
+
+★ IMPLICIT GRAPH SIGNALS (no graph given, you build it):
+  "transform one state to another, min steps"  → BFS on states
+  "each configuration is a node"               → BFS/DFS on state space
+  "change one character at a time"             → Each string = node, BFS
+
+
+================================================================
+BFS vs DFS DECISION
+================================================================
+
+Shortest path (unweighted)       → BFS
+Minimum steps to reach target    → BFS
+Level-by-level processing        → BFS
+Multiple sources simultaneously  → Multi-source BFS
+Cycle detection                  → DFS
+Topological sort                 → Kahn's (BFS) or DFS
+Path existence                   → Either
+Island / flood fill              → DFS (simpler code)
+Exhaustive search / backtracking → DFS
+
+
+================================================================
+PROBLEMS COVERED (13 total)
+================================================================
+
+🟢 COMFORTABLE
+LC 200 — Number of Islands       → DFS on grid, modify in-place
+LC 733 — Flood Fill              → DFS on grid
+LC 994 — Rotting Oranges         → Multi-source BFS
+LC 207 — Course Schedule         → Cycle detection (directed DFS + inStack)
+LC 210 — Course Schedule II      → Kahn's topological sort
+
+🟡 QUICK REVISION
+LC 542 — 01 Matrix               → Multi-source BFS from all 0s
+LC 133 — Clone Graph             → BFS + HashMap lazy clone creation
+LC 130 — Surrounded Regions      → DFS from boundary O's
+LC 743 — Network Delay Time      → Dijkstra
+
+🔴 RE-ATTEMPT FROM SCRATCH
+LC 417 — Pacific Atlantic        → Reverse DFS from both ocean boundaries
+LC 684 — Redundant Connection    → Union Find, cycle when union returns false
+LC 127 — Word Ladder             → Implicit graph BFS, char replacement
+LC 787 — Cheapest Flights        → Modified Dijkstra with stops state
+
+
+================================================================
+COMMON INTERVIEW TRAPS
+================================================================
+
+1. Not marking visited before adding to queue → same node added multiple times
+2. Running BFS from each cell individually → O(n²), use multi-source instead
+3. Forgetting stale entry check in Dijkstra → wrong results
+4. Using Dijkstra with negative weights → use Bellman-Ford instead
+5. Cycle detection in directed vs undirected → different code, don't mix up
+6. Topological sort on a cyclic graph → always check result.size() == n
+7. Not resetting inStack on DFS backtrack → false cycle detection
+
+================================================================

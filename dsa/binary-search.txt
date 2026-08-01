@@ -1,0 +1,374 @@
+Binary Search — DSA Intern Prep
+==================================
+
+
+THE CORE IDEA
+--------------
+At every step, eliminate HALF the search space.
+Only works when the space is SORTED or has a monotonic property.
+
+Time: O(log n) — input halves every iteration.
+
+
+================================================================
+THE TWO TEMPLATES — AND WHY EVERY DECISION IS MADE
+================================================================
+
+
+TEMPLATE 1 — Exact Match (find specific value)
+------------------------------------------------
+  int left = 0, right = nums.length - 1;
+  while (left <= right) {
+      int mid = left + (right - left) / 2;
+      if (nums[mid] == target) return mid;
+      else if (nums[mid] < target) left = mid + 1;
+      else right = mid - 1;
+  }
+  return -1;
+
+Decision breakdown:
+
+  right = nums.length - 1
+    Last valid index. Search space is [0, n-1].
+
+  left <= right (not left < right)
+    When left == right, there is still ONE element to check.
+    Using < would miss the last remaining element.
+
+  mid = left + (right - left) / 2
+    NOT (left + right) / 2.
+    If left=1B and right=2B, left+right overflows int (max ~2.1B).
+    left + (right-left)/2 is mathematically identical but overflow-safe.
+
+  left = mid + 1 (not mid)
+    We already checked mid and it was too small.
+    Including mid again causes infinite loop.
+
+  right = mid - 1 (not mid)
+    We already checked mid and it was too large.
+    Including mid again causes infinite loop.
+
+  return -1
+    Loop exits when left > right — search space exhausted, not found.
+
+
+TEMPLATE 2 — Boundary Search (find leftmost valid position)
+-------------------------------------------------------------
+  int left = 0, right = nums.length - 1;
+  while (left < right) {
+      int mid = left + (right - left) / 2;
+      if (condition(mid)) right = mid;
+      else left = mid + 1;
+  }
+  return left;  // or right, they are equal
+
+Decision breakdown:
+
+  left < right (not left <= right)
+    We are NOT looking for exact match. We want to CONVERGE to a boundary.
+    When left == right, we have found our answer. Loop should stop.
+    Using <= would process the same element again unnecessarily.
+
+  right = mid (not mid - 1)
+    mid SATISFIES the condition — it could be the answer.
+    We cannot discard it, so right moves to mid (not mid-1).
+
+  left = mid + 1 (not mid)
+    mid does NOT satisfy condition — it cannot be the answer.
+    Safe to discard entirely.
+
+  Why does this converge?
+    mid = left + (right-left)/2 always rounds DOWN.
+    So mid < right when left < right.
+    Therefore right = mid always shrinks the space.
+    And left = mid+1 always shrinks the space.
+    Loop must terminate.
+
+  return left (or right — they are equal when loop exits)
+
+WHEN TO USE WHICH TEMPLATE:
+  Template 1 — exact value exists, return index or -1
+  Template 2 — find boundary, first/last position satisfying condition
+
+
+================================================================
+BINARY SEARCH ON ANSWER SPACE
+================================================================
+
+Not all binary search is on a sorted ARRAY.
+Sometimes you binary search on the ANSWER itself.
+
+Pattern recognition:
+  "Find minimum X such that condition(X) is true"
+  "Find maximum X such that condition(X) is true"
+
+If you can ask "is X valid?" and answers look like:
+  [false, false, false, true, true, true]  → find first true
+  [true, true, true, false, false, false]  → find last true
+
+Then binary search on X between [min_possible_answer, max_possible_answer].
+
+Template for "find minimum valid answer":
+  int left = minPossible, right = maxPossible;
+  while (left < right) {
+      int mid = left + (right - left) / 2;
+      if (isValid(mid)) right = mid;    // mid works, try smaller
+      else left = mid + 1;              // mid too small, try larger
+  }
+  return left;
+
+
+================================================================
+PROBLEMS COVERED
+================================================================
+
+
+1. BINARY SEARCH — LeetCode #704
+----------------------------------
+Problem: Find target in sorted array. Return index or -1.
+
+  public int search(int[] nums, int target) {
+      int left = 0, right = nums.length - 1;
+      while (left <= right) {
+          int mid = left + (right - left) / 2;
+          if (nums[mid] == target) return mid;
+          else if (nums[mid] < target) left = mid + 1;
+          else right = mid - 1;
+      }
+      return -1;
+  }
+
+Use Template 1 — exact match.
+Complexity: Time O(log n)  Space O(1)
+
+
+2. SEARCH INSERT POSITION — LeetCode #35
+-----------------------------------------
+Problem: Find index where target should be inserted in sorted array.
+         If exists, return its index.
+
+  public int searchInsert(int[] nums, int target) {
+      int left = 0, right = nums.length - 1;
+      while (left <= right) {
+          int mid = left + (right - left) / 2;
+          if (nums[mid] == target) return mid;
+          else if (nums[mid] < target) left = mid + 1;
+          else right = mid - 1;
+      }
+      return left;  // left = insertion point when not found
+  }
+
+Why return left (not right) when not found:
+  Loop exits when left > right.
+  At this point, left is the first index where nums[left] > target.
+  That is exactly where target should be inserted.
+
+Complexity: Time O(log n)  Space O(1)
+
+
+3. FIND MINIMUM IN ROTATED SORTED ARRAY — LeetCode #153
+---------------------------------------------------------
+Problem: Find minimum in rotated sorted array in O(log n).
+         Array has no duplicates.
+
+  public int findMin(int[] nums) {
+      int left = 0, right = nums.length - 1;
+      while (left < right) {
+          int mid = left + (right - left) / 2;
+          if (nums[mid] > nums[right]) left = mid + 1;
+          else right = mid;
+      }
+      return nums[left];
+  }
+
+Use Template 2 — find boundary (minimum element).
+
+Why compare mid with RIGHT (not left):
+  If nums[mid] > nums[right]: mid is in the LEFT (larger) half.
+    Minimum must be in right half → left = mid + 1.
+  If nums[mid] <= nums[right]: mid is in the RIGHT (smaller) half.
+    Minimum is at mid or to its left → right = mid (keep mid).
+
+Why not compare with left:
+  When array is not rotated (already sorted), nums[left] < nums[mid]
+  always — gives no useful information about which half min is in.
+  Comparing with right always tells you which half is "broken."
+
+Complexity: Time O(log n)  Space O(1)
+
+
+4. SEARCH IN ROTATED SORTED ARRAY — LeetCode #33
+--------------------------------------------------
+Problem: Find target in rotated sorted array. Return index or -1.
+
+  public int search(int[] nums, int target) {
+      int left = 0, right = nums.length - 1;
+      while (left <= right) {
+          int mid = left + (right - left) / 2;
+          if (nums[mid] == target) return mid;
+          if (nums[left] <= nums[mid]) {
+              // left half is sorted
+              if (target >= nums[left] && target < nums[mid])
+                  right = mid - 1;
+              else
+                  left = mid + 1;
+          } else {
+              // right half is sorted
+              if (target > nums[mid] && target <= nums[right])
+                  left = mid + 1;
+              else
+                  right = mid - 1;
+          }
+      }
+      return -1;
+  }
+
+Use Template 1 — exact match, but with rotated array logic.
+
+Key insight: in a rotated array, ONE of the two halves is always sorted.
+  Determine which half is sorted.
+  Check if target falls within the sorted half.
+  If yes → search there. If no → search other half.
+
+Why nums[left] <= nums[mid] (not <):
+  Handles duplicates edge case and single element windows.
+
+Complexity: Time O(log n)  Space O(1)
+
+
+5. KOKO EATING BANANAS — LeetCode #875
+----------------------------------------
+Problem: Koko eats at speed k bananas/hour. Find minimum k to finish
+         all piles within h hours.
+
+  public int minEatingSpeed(int[] piles, int h) {
+      int left = 1, right = 0;
+      for (int p : piles) right = Math.max(right, p);
+
+      while (left < right) {
+          int mid = left + (right - left) / 2;
+          if (canFinish(piles, mid, h)) right = mid;
+          else left = mid + 1;
+      }
+      return left;
+  }
+
+  private boolean canFinish(int[] piles, int speed, int h) {
+      int hours = 0;
+      for (int pile : piles) {
+          hours += (pile + speed - 1) / speed;  // ceil(pile/speed)
+      }
+      return hours <= h;
+  }
+
+Binary search on ANSWER SPACE — not on array.
+  left = 1 (minimum possible speed)
+  right = max(piles) (maximum needed speed — eat largest pile in 1 hour)
+
+Why right = mid when canFinish is true:
+  mid speed works, but we want MINIMUM. Try smaller → right = mid.
+
+Why left = mid + 1 when canFinish is false:
+  mid speed is too slow. Must go faster → left = mid + 1.
+
+Ceil division trick: ceil(a/b) = (a + b - 1) / b
+  pile=7, speed=3 → (7+2)/3 = 3 hours ✓ (3+3+1)
+
+Complexity: Time O(n log m)  n=piles, m=max(pile)  Space O(1)
+
+
+6. CAPACITY TO SHIP PACKAGES IN D DAYS — LeetCode #1011
+---------------------------------------------------------
+Problem: Find minimum ship capacity to ship all packages within d days.
+         Packages must be shipped in order.
+
+  public int shipWithinDays(int[] weights, int days) {
+      int left = 0, right = 0;
+      for (int w : weights) {
+          left = Math.max(left, w);   // min capacity = heaviest package
+          right += w;                  // max capacity = sum of all
+      }
+
+      while (left < right) {
+          int mid = left + (right - left) / 2;
+          if (canShip(weights, mid, days)) right = mid;
+          else left = mid + 1;
+      }
+      return left;
+  }
+
+  private boolean canShip(int[] weights, int capacity, int days) {
+      int daysNeeded = 1, currentLoad = 0;
+      for (int w : weights) {
+          if (currentLoad + w > capacity) {
+              daysNeeded++;
+              currentLoad = 0;
+          }
+          currentLoad += w;
+      }
+      return daysNeeded <= days;
+  }
+
+Same answer space pattern as Koko.
+  left = max(weights) — must fit heaviest package
+  right = sum(weights) — ship everything in one day
+
+Why left = max(weights) and not 1:
+  If capacity < heaviest package, that package can never be shipped.
+  So minimum valid capacity is the heaviest single package.
+
+Complexity: Time O(n log m)  n=packages, m=sum(weights)  Space O(1)
+
+
+================================================================
+DECISIONS SUMMARY — QUICK REFERENCE
+================================================================
+
+  Condition         |  Move        |  Why
+  ------------------|--------------|--------------------------------
+  left <= right     |  Template 1  |  need to check when left==right
+  left < right      |  Template 2  |  stop when converged to answer
+  left = mid + 1    |  always safe |  mid checked/invalid, discard
+  right = mid - 1   |  Template 1  |  mid checked/invalid, discard
+  right = mid       |  Template 2  |  mid valid, keep as candidate
+  return left       |  Template 2  |  left==right at convergence
+
+
+================================================================
+COMMON MISTAKES
+================================================================
+
+1. Integer overflow
+   WRONG: (left + right) / 2
+   RIGHT: left + (right - left) / 2
+
+2. Infinite loop with Template 2
+   If you write right = mid - 1 in Template 2 you might skip the answer.
+   In Template 2: condition true → right = mid (NOT mid-1)
+
+3. Wrong boundary initialization for answer space
+   left must be minimum VALID answer (not 0 or 1 blindly)
+   right must be maximum POSSIBLE answer
+
+4. Off by one in ceil division
+   ceil(pile/speed): use (pile + speed - 1) / speed
+   NOT pile/speed (that's floor)
+
+5. Comparing with wrong side in rotated array
+   Always compare nums[mid] with nums[right] to find which half is sorted.
+   Comparing with nums[left] gives ambiguous results.
+
+
+================================================================
+PATTERN RECOGNITION
+================================================================
+
+"Find target in sorted array"              →  Template 1, exact match
+"Find first/last position of X"            →  Template 2, boundary search
+"Find minimum in rotated array"            →  Template 2, compare with right
+"Search in rotated array"                  →  Template 1, identify sorted half
+"Find minimum X where condition holds"     →  Binary search on answer space
+  - Koko eating bananas
+  - Ship packages in D days
+  - Minimum days to make bouquets
+  - Split array largest sum

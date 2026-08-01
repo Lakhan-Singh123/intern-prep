@@ -1,0 +1,167 @@
+================================================================
+MODULE 2 — NETWORK MODELS (OSI + TCP/IP)
+================================================================
+
+WHY LAYERED ARCHITECTURE?
+--------------------------
+Before OSI: every company had proprietary networking — IBM computers
+could only talk to IBM computers. No interoperability.
+
+Solution: standardize by breaking communication into layers.
+Each layer handles ONE specific responsibility.
+Each layer talks only to the layer directly above and below it.
+Change one layer's implementation — rest don't care.
+
+
+OSI MODEL — 7 LAYERS
+---------------------
+Mnemonic top→bottom: Please Do Not Throw Sausage Pizza Away
+Mnemonic bottom→top: All People Seem To Need Data Processing
+
+  7. APPLICATION   — HTTP, DNS, FTP, SMTP, WebSocket
+                     User-facing protocols
+  6. PRESENTATION  — Encryption (TLS), compression, encoding (UTF-8)
+                     Translator and encoder
+  5. SESSION       — Session management, authentication, checkpointing
+                     Conversation manager
+  4. TRANSPORT     — TCP, UDP, Ports
+                     End-to-end delivery between processes
+  3. NETWORK       — IP, Routing
+                     Logical addressing, decides route
+  2. DATA LINK     — MAC, Ethernet, ARP, Error detection (CRC)
+                     Local (hop-to-hop) delivery using MAC
+  1. PHYSICAL      — Cables, Wi-Fi, electrical signals, radio waves
+                     Raw bits on the physical medium
+
+PDU (data unit) at each layer:
+  Layer 7/6/5 → Data
+  Layer 4     → Segment (TCP) / Datagram (UDP)
+  Layer 3     → Packet
+  Layer 2     → Frame
+  Layer 1     → Bits
+
+
+DEVICES AND THEIR LAYERS
+--------------------------
+  Hub      → Layer 1 — blindly repeats bits to ALL ports (dumb)
+  Switch   → Layer 2 — reads MAC, sends frame to correct port only
+  Router   → Layer 3 — reads IP, routes packet to correct network
+  Firewall → Layer 3/4/7 — depends on type (packet filter / stateful / WAF)
+
+★ Hub vs Switch vs Router (very frequently asked):
+  Hub:    Layer 1, broadcasts to everyone, causes collisions, obsolete
+  Switch: Layer 2, uses MAC table, efficient, used in LAN
+  Router: Layer 3, uses IP, connects different networks (LAN ↔ WAN)
+
+
+ENCAPSULATION (sender — going DOWN layers)
+------------------------------------------
+Each layer ADDS its own header as data travels down:
+
+  App data:    [ "Hello"                              ]
+  + Transport: [ TCP Header  | "Hello"               ]  → Segment
+  + Network:   [ IP Header   | TCP Hdr | "Hello"     ]  → Packet
+  + Data Link: [ MAC Header  | IP Hdr  | TCP Hdr | "Hello" | CRC ] → Frame
+  + Physical:  01001011010101...                         → Bits
+
+DECAPSULATION (receiver — going UP layers)
+------------------------------------------
+Each layer READS and STRIPS its own header going up:
+
+  Physical:  bits → frame
+  Data Link: reads MAC → correct dest? → strips MAC header
+  Network:   reads IP  → correct IP?   → strips IP header
+  Transport: reads port → correct app? → strips TCP header, reassembles
+  App:       receives "Hello"
+
+Each layer reads ONLY its own header. Router doesn't look inside TCP.
+Switch doesn't look inside IP.
+
+
+★ KEY INSIGHT: MAC vs IP across hops
+--------------------------------------
+IP addresses: stay the SAME from source to destination (end-to-end)
+MAC addresses: change at EVERY router hop (local delivery only)
+
+Why MAC changes:
+  MAC is for LOCAL delivery on one network segment.
+  At each router, old MAC stripped, new MAC added for next hop.
+
+Full flow — your laptop (192.168.1.5) → Google (8.8.8.8):
+
+  Hop 1 (Laptop → Home Router):
+    Network layer: "8.8.8.8 not local → send to gateway 192.168.1.1"
+    Data Link layer: ARP for 192.168.1.1 → gets router's MAC
+    Frame: [src: my MAC | dst: router MAC | IP: me→Google]
+
+  At Home Router:
+    Data Link strips frame (it's addressed to router's MAC)
+    Network layer reads IP: 8.8.8.8 → checks routing table → next hop: ISP router
+    Data Link: ARP for ISP router's IP → gets ISP router's MAC
+    NEW frame: [src: router MAC | dst: ISP MAC | IP: me→Google]  ← same IP packet
+
+  This repeats at every router until Google is reached.
+
+Network layer  = NAVIGATOR (decides which next-hop IP)
+Data Link layer = DRIVER   (finds MAC via ARP, does local delivery)
+
+★ How does Transport layer know the destination port?
+------------------------------------------------------
+The APPLICATION tells it — not the transport layer's job to decide.
+
+Browser wants HTTPS → browser knows port = 443 (fixed standard)
+Browser passes port 443 down to transport layer.
+Transport layer just uses it.
+
+Destination port = decided by APPLICATION PROTOCOL (HTTP=80, HTTPS=443,
+                   DNS=53, SSH=22 — both sides know these in advance)
+Source port      = random ephemeral port assigned by OS (49152-65535)
+                   Used by server to reply to the correct browser tab
+
+
+TCP/IP MODEL — 4 LAYERS
+------------------------
+What the internet actually runs on. OSI is theoretical reference.
+
+  TCP/IP Layer      ≈ OSI Layers
+  ────────────────────────────────
+  Application       = 7 + 6 + 5
+  Transport         = 4
+  Internet          = 3
+  Network Access    = 2 + 1
+
+Why TCP/IP won over OSI:
+  - OSI was designed by committee (complex, bureaucratic)
+  - TCP/IP was built by engineers solving real problems (ARPANET)
+  - TCP/IP was already deployed when OSI was still being finalized
+  - Simpler and proven in practice
+
+
+OSI vs TCP/IP — COMPARISON TABLE
+----------------------------------
+  Point           OSI                   TCP/IP
+  ─────────────────────────────────────────────────
+  Layers          7                     4
+  Developed by    ISO (1984)            DARPA (1970s)
+  Usage           Reference/teaching    Actual internet
+  Session/Pres    Separate layers       Part of Application
+  Approach        Protocol-independent  Protocol-specific
+
+OSI = used for troubleshooting reference ("layer 3 issue"), teaching
+TCP/IP = used for actual communication
+
+
+QUICK REFERENCE
+----------------
+OSI 7 layers     → App, Presentation, Session, Transport, Network, DataLink, Physical
+TCP/IP 4 layers  → Application, Transport, Internet, Network Access
+Encapsulation    → add header going DOWN (sender)
+Decapsulation    → strip header going UP (receiver)
+PDUs             → Data → Segment → Packet → Frame → Bits
+Hub              → Layer 1, broadcasts all
+Switch           → Layer 2, MAC-based, correct port only
+Router           → Layer 3, IP-based, routes between networks
+MAC              → changes at every hop
+IP               → stays same end-to-end
+Dest port        → decided by application protocol, passed down to transport
+================================================================

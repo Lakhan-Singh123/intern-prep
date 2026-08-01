@@ -1,0 +1,197 @@
+================================================================
+TRIE (PREFIX TREE) — Interview Prep Notes
+================================================================
+
+REVISION FLAGS:
+  🔴 REVISE BEFORE INTERVIEW:
+      LC 212 — Word Search II (Trie + DFS, most implementation-heavy)
+
+  🟢 COMFORTABLE:
+      LC 208 — Implement Trie
+      LC 211 — Add and Search Word
+      LC 648 — Replace Words
+
+================================================================
+
+CORE STRUCTURE
+--------------
+class TrieNode {
+    TrieNode[] children = new TrieNode[26];  // index = ch - 'a'
+    boolean isEnd = false;                    // marks complete word
+}
+
+Character is NOT stored in node — implied by which index of parent's children[] it occupies.
+
+WHEN TO USE TRIE:
+  ✓ Prefix search / autocomplete
+  ✓ Check if string starts with a prefix
+  ✓ Multiple words — search all in one board pass (Word Search II)
+  ✓ Find shortest prefix / root replacement
+  ✗ Single exact word lookup → HashMap is simpler
+
+
+================================================================
+3 CORE OPERATIONS
+================================================================
+
+INSERT — O(L)
+    void insert(String word) {
+        TrieNode node = root;
+        for (char ch : word.toCharArray()) {
+            int i = ch - 'a';
+            if (node.children[i] == null) node.children[i] = new TrieNode();
+            node = node.children[i];
+        }
+        node.isEnd = true;
+    }
+
+SEARCH (exact match) — O(L)
+    boolean search(String word) {
+        TrieNode node = root;
+        for (char ch : word.toCharArray()) {
+            int i = ch - 'a';
+            if (node.children[i] == null) return false;
+            node = node.children[i];
+        }
+        return node.isEnd;   // must be complete word, not just prefix
+    }
+
+STARTS WITH (prefix check) — O(L)
+    boolean startsWith(String prefix) {
+        TrieNode node = root;
+        for (char ch : prefix.toCharArray()) {
+            int i = ch - 'a';
+            if (node.children[i] == null) return false;
+            node = node.children[i];
+        }
+        return true;         // don't check isEnd — prefix is enough
+    }
+
+KEY DIFFERENCE:
+  search("app")      → true only if "app" was inserted as a complete word
+  startsWith("app")  → true if ANY word starting with "app" was inserted
+
+
+================================================================
+4 CORE PATTERNS
+================================================================
+
+PATTERN 1: BASIC TRIE IMPLEMENTATION
+--------------------------------------
+LC 208 — Implement Trie
+  insert + search + startsWith using children[] and isEnd
+  Know this cold — it's the foundation and will be asked exactly like this
+
+
+PATTERN 2: WILDCARD SEARCH (recursion required)
+-------------------------------------------------
+LC 211 — Add and Search Word
+  '.' can match any character → must try ALL 26 children recursively
+
+    boolean searchHelper(String word, int index, TrieNode node) {
+        if (index == word.length()) return node.isEnd;
+        char ch = word.charAt(index);
+
+        if (ch == '.') {
+            for (TrieNode child : node.children)
+                if (child != null && searchHelper(word, index+1, child)) return true;
+            return false;
+        } else {
+            int i = ch - 'a';
+            if (node.children[i] == null) return false;
+            return searchHelper(word, index+1, node.children[i]);
+        }
+    }
+
+  Regular search = iterative. Wildcard search = recursive (branching on '.')
+
+
+PATTERN 3: SHORTEST PREFIX MATCHING
+--------------------------------------
+LC 648 — Replace Words
+  Build Trie from dictionary of roots
+  For each word in sentence: walk Trie, stop at FIRST isEnd node → that's the root
+  If no root found → keep original word
+
+    String findRoot(TrieNode root, String word) {
+        TrieNode node = root;
+        StringBuilder prefix = new StringBuilder();
+        for (char ch : word.toCharArray()) {
+            int i = ch - 'a';
+            if (node.children[i] == null) break;
+            prefix.append(ch);
+            node = node.children[i];
+            if (node.isEnd) return prefix.toString();  // shortest root found
+        }
+        return word;
+    }
+
+
+PATTERN 4: TRIE + DFS/BACKTRACKING 🔴
+----------------------------------------
+LC 212 — Word Search II
+  Naive: run Word Search I for each word → TLE
+  Trie optimization: build Trie from all words, run ONE DFS on board
+  Trie guides the DFS — prune any path not matching a prefix
+
+  Key implementation details:
+  - Store complete word string in TrieNode (node.word = word) — avoids rebuilding
+  - Set node.word = null after adding to result → prevents duplicates
+  - Prune when node.children[ch-'a'] == null → no word has this prefix
+
+    void dfs(char[][] board, int row, int col, TrieNode node, List<String> result) {
+        if (row<0||row>=m||col<0||col>=n) return;
+        char ch = board[row][col];
+        if (ch=='#' || node.children[ch-'a']==null) return;  // prune
+
+        node = node.children[ch-'a'];
+        if (node.word != null) {
+            result.add(node.word);
+            node.word = null;          // avoid duplicates
+        }
+
+        board[row][col] = '#';         // mark visited
+        int[][] dirs = {{0,1},{0,-1},{1,0},{-1,0}};
+        for (int[] dir : dirs) dfs(board, row+dir[0], col+dir[1], node, result);
+        board[row][col] = ch;          // restore
+    }
+
+  WHY TRIE IS FASTER: prune at node.children[ch-'a']==null cuts entire subtrees
+  that can never lead to a valid word — massive savings over per-word DFS
+
+
+================================================================
+PROBLEMS COVERED (4 total)
+================================================================
+
+🟢 COMFORTABLE
+LC 208 — Implement Trie          → children[] + isEnd, iterative insert/search
+LC 211 — Add and Search Word     → recursive wildcard with '.' branching
+LC 648 — Replace Words           → stop at first isEnd = shortest root
+
+🔴 REVISE
+LC 212 — Word Search II          → Trie + DFS, store word in node, prune aggressively
+
+
+================================================================
+COMMON INTERVIEW TRAPS
+================================================================
+
+1. Checking isEnd in startsWith → don't, prefix search doesn't need complete word
+2. Not setting node.word = null after finding → duplicate words in result
+3. Forgetting to restore board[row][col] after DFS (Word Search II)
+4. Using HashMap instead of children[] → works but slower, mention tradeoff
+5. Recursive vs iterative: regular ops = iterative, wildcard = recursive
+
+
+================================================================
+INTERVIEW TIPS
+================================================================
+
+- "Autocomplete", "prefix search", "dictionary" → immediately think Trie
+- "Find all words in board" (multiple words) → Trie + DFS, not per-word DFS
+- Always implement LC 208 from scratch first in interviews before extensions
+- Time: O(L) per operation where L = word length
+- Space: O(alphabet × total characters) for the Trie
+
+================================================================

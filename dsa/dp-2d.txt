@@ -1,0 +1,275 @@
+================================================================
+DYNAMIC PROGRAMMING 2D — Interview Prep Notes
+================================================================
+
+REVISION FLAGS:
+  🔴 DEEP REVISION — re-attempt from scratch:
+      LC 10  — Regular Expression Matching (* transitions + base case init)
+      LC 516 — Longest Palindromic Subsequence (interval DP structure)
+
+  🟢 COMFORTABLE:
+      LC 62  — Unique Paths
+      LC 64  — Minimum Path Sum
+      LC 63  — Unique Paths II
+      LC 1143 — Longest Common Subsequence
+      LC 72  — Edit Distance
+      LC 309 — Best Time to Buy and Sell Stock with Cooldown
+      LC 518 — Coin Change II
+
+================================================================
+
+CORE IDEA
+---------
+2D DP: state needs TWO variables to describe it.
+  dp[i][j] = answer considering first i elements of one thing
+              and first j elements of another (or range i..j)
+
+Same 4-step framework:
+  1. Define dp[i][j] precisely
+  2. Write the recurrence
+  3. Identify base cases
+  4. Determine iteration order
+
+
+================================================================
+4 CORE PATTERNS
+================================================================
+
+PATTERN 1: GRID DP
+-------------------
+dp[i][j] = answer at cell (i, j) in a 2D grid.
+Transitions always come from dp[i-1][j] (above) and dp[i][j-1] (left).
+
+LC 62 — Unique Paths
+  dp[i][j] = dp[i-1][j] + dp[i][j-1]
+  Base: first row = 1, first col = 1
+  Time: O(m×n), Space: O(n) with 1D rolling array
+
+LC 64 — Minimum Path Sum
+  dp[i][j] = grid[i][j] + min(dp[i-1][j], dp[i][j-1])
+  Base: dp[0][0]=grid[0][0], first row = cumulative left, first col = cumulative down
+
+LC 63 — Unique Paths II (with obstacles)
+  Same as LC 62 but: if grid[i][j] == 1 → dp[i][j] = 0
+  TRAP: if start or end cell is blocked → return 0 immediately
+  TRAP: in base case, if any cell in first row/col is blocked,
+        all cells after it in that row/col = 0 (can't pass through)
+
+
+PATTERN 2: TWO-STRING DP
+--------------------------
+dp[i][j] = answer considering s1[0..i-1] and s2[0..j-1]
+Rows = s1 characters, Columns = s2 characters.
+Table has (m+1) × (n+1) dimensions — row/col 0 = empty string.
+
+THE DECISION TABLE (memorize this):
+  if s1[i-1] == s2[j-1]:
+    LCS        → dp[i-1][j-1] + 1
+    Edit Dist  → dp[i-1][j-1]       (no operation needed)
+
+  if s1[i-1] != s2[j-1]:
+    LCS        → max(dp[i-1][j], dp[i][j-1])
+    Edit Dist  → 1 + min(dp[i-1][j-1], dp[i-1][j], dp[i][j-1])
+                        replace         delete        insert
+
+LC 1143 — Longest Common Subsequence
+  dp[i][j] = LCS length of s1[0..i-1] and s2[0..j-1]
+  Base: dp[0][j] = 0, dp[i][0] = 0
+  Time: O(m×n), Space: O(m×n) or O(n) optimized
+
+LC 72 — Edit Distance
+  dp[i][j] = min ops to convert word1[0..i-1] to word2[0..j-1]
+  Base: dp[i][0] = i (delete all), dp[0][j] = j (insert all)
+  Three operations: replace = dp[i-1][j-1]+1
+                    delete  = dp[i-1][j]+1
+                    insert  = dp[i][j-1]+1
+
+
+PATTERN 3: INTERVAL DP
+------------------------
+dp[i][j] = answer for the subproblem on range s[i..j]
+Iteration: by LENGTH of interval, not by index (critical!)
+
+WHY interval DP and NOT expand-around-center:
+  Expand-around-center = SUBSTRING (contiguous characters, can physically expand)
+  Interval DP          = SUBSEQUENCE (non-contiguous, must consider skipping chars)
+  Rule: substring problems → expand. Subsequence problems → interval DP.
+
+LC 516 — Longest Palindromic Subsequence 🔴
+  dp[i][j] = length of LPS in s[i..j]
+  if s[i] == s[j] → dp[i][j] = dp[i+1][j-1] + 2
+  else            → dp[i][j] = max(dp[i+1][j], dp[i][j-1])
+  Base: dp[i][i] = 1 (single char is palindrome of length 1)
+
+  Iteration order — by length:
+    for (int len = 2; len <= n; len++)
+        for (int i = 0; i <= n-len; i++)
+            j = i + len - 1
+            // fill dp[i][j]
+
+  WHY length-first: dp[i][j] depends on dp[i+1][j-1] (shorter interval).
+  Shorter intervals must be solved before longer ones.
+
+
+PATTERN 4: STATE MACHINE DP
+-----------------------------
+State = (day, current_status). Track transitions between statuses.
+
+LC 309 — Stock with Cooldown
+  States at each day: HOLD (own stock), SOLD (just sold), REST (can buy)
+  Transitions:
+    hold[i] = max(hold[i-1], rest[i-1] - prices[i])   // keep or buy
+    sold[i] = hold[i-1] + prices[i]                    // sell today
+    rest[i] = max(rest[i-1], sold[i-1])                // cooldown or stay rested
+
+  Answer: max(sold[n-1], rest[n-1])
+  Space optimize to variables: prevHold, prevSold, prevRest
+  Time: O(n), Space: O(1)
+
+
+PATTERN 5: KNAPSACK VARIANTS
+------------------------------
+0/1 Knapsack — each item used at most once → iterate BACKWARDS
+Unbounded    — each item used any times   → iterate FORWARDS
+
+LC 518 — Coin Change II (Unbounded Knapsack)
+  Count combinations to make amount. Coins reusable.
+  dp[j] = number of ways to make amount j
+  for each coin: for j from coin to amount (FORWARDS — reuse allowed)
+    dp[j] += dp[j - coin]
+  Base: dp[0] = 1
+  Time: O(coins × amount), Space: O(amount)
+
+  vs Coin Change I (min coins, also unbounded):
+    dp[j] = min(dp[j], dp[j-coin]+1)
+    Base: dp[0]=0, rest=MAX_VALUE
+    Same forwards iteration
+
+
+PATTERN 6: REGEX DP (two-string with special characters) 🔴
+------------------------------------------------------------
+LC 10 — Regular Expression Matching
+
+dp[i][j] = does s[0..i-1] match p[0..j-1]?
+
+Base cases:
+  dp[0][0] = true                                (empty matches empty)
+  dp[i][0] = false for i > 0                    (non-empty s, empty p = false)
+  dp[0][j]: p against empty string
+    only true if p[j-1]=='*' AND dp[0][j-2]     (X* = zero occurrences)
+
+Transitions:
+  if p[j-1] == s[i-1] OR p[j-1] == '.':
+    dp[i][j] = dp[i-1][j-1]                     (characters match, advance both)
+
+  if p[j-1] == '*':
+    dp[i][j] = dp[i][j-2]                       // zero occurrences of X*
+             || (dp[i-1][j]                      // one+ occurrences
+                && (p[j-2]==s[i-1] || p[j-2]=='.'))
+
+THE HARDEST PART: * can mean zero occurrences (eliminate X*) or one+ occurrences
+  Zero: dp[i][j-2] — pretend X* doesn't exist
+  One+: dp[i-1][j] — consume one s[i-1] and stay at same pattern position
+
+
+================================================================
+PROBLEMS COVERED (9 total)
+================================================================
+
+🟢 COMFORTABLE
+LC 62  — Unique Paths             → grid DP, base = first row/col = 1
+LC 64  — Minimum Path Sum         → grid DP, min of above and left
+LC 63  — Unique Paths II          → grid DP, obstacle = 0, careful base case
+LC 1143 — LCS                     → two-string DP, diagonal on match
+LC 72  — Edit Distance            → two-string DP, three operations
+LC 309 — Stock with Cooldown      → state machine, three states
+LC 518 — Coin Change II           → unbounded knapsack, forwards iteration
+
+🔴 DEEP REVISION
+LC 516 — Longest Palindromic Subseq → interval DP, iterate by length
+LC 10  — Regex Matching           → * base case + zero/one+ transitions
+
+
+================================================================
+KEY DISTINCTIONS — COMMON CONFUSIONS
+================================================================
+
+LCS vs LPS:
+  LCS  — two different strings, find common subsequence
+  LPS  — one string, find longest palindromic subsequence within it
+  LCS uses dp[i][j] with two string indices
+  LPS uses dp[i][j] with range [i..j] of same string
+
+Coin Change I vs II:
+  I  — minimum number of coins (dp = min, init MAX_VALUE except dp[0]=0)
+  II — number of combinations    (dp = count, init 0 except dp[0]=1)
+  Both: unbounded knapsack, iterate forwards
+
+Substring vs Subsequence:
+  Substring  → contiguous → expand around center or sliding window
+  Subsequence → non-contiguous → DP table (LCS/LPS style)
+
+
+================================================================
+COMMON INTERVIEW TRAPS
+================================================================
+
+1. Grid base case with obstacle — cells after obstacle in first row/col = 0
+2. Edit distance base case — dp[i][0]=i, dp[0][j]=j (not all zeros)
+3. Interval DP — forgetting to iterate by length instead of by index
+4. Regex * — forgetting zero-occurrence case dp[i][j-2]
+5. Regex base case — dp[0][j] must handle patterns like "a*b*c*"
+6. Coin Change II vs I — forwards vs forwards but different init + operation
+7. LPS single-char base — dp[i][i]=1, NOT dp[i][i]=0
+
+
+================================================================
+★ MASTER SIGNAL TABLE — PATTERN RECOGNITION
+================================================================
+
+When you see this in a problem...              → Think this pattern
+
+"grid, robot moves right/down only"            → Grid DP (Unique Paths style)
+"minimum cost path in grid"                    → Grid DP (min of above + left)
+"grid with obstacles"                          → Grid DP, set blocked cells = 0
+"longest common subsequence of two strings"    → Two-string DP, diagonal on match
+"minimum edit distance / operations"           → Two-string DP, three operations
+"convert string A to string B"                 → Edit Distance
+"is string A a subsequence of string B"        → Two-string DP or two-pointer
+"longest palindromic SUBSEQUENCE"              → Interval DP (one string, range i..j)
+"minimum cuts to make all parts palindromes"   → Interval DP
+"stock buy/sell with cooldown/fee/limit"       → State machine DP (hold/sold/rest)
+"number of combinations to make amount"        → Unbounded knapsack (forwards)
+"minimum coins to make amount"                 → Unbounded knapsack (forwards, min)
+"count ways to make sum, each item once"       → 0/1 knapsack (backwards)
+"regex or wildcard pattern matching"           → Two-string DP with special cases
+
+★ DISGUISED TWO-STRING DP SIGNALS:
+  "how similar are two strings"                → LCS or Edit Distance
+  "minimum operations to make strings equal"   → Edit Distance
+  "longest sequence appearing in both"         → LCS
+  "DNA/gene sequence alignment"                → LCS or Edit Distance
+
+★ SUBSTRING vs SUBSEQUENCE — always ask this first:
+  Contiguous (substring)   → expand around center / sliding window
+  Non-contiguous (subseq)  → DP table (LCS / LPS / Edit Distance)
+
+★ INTERVAL DP SIGNAL:
+  If dp[i][j] depends on dp[i+1][j-1] → MUST iterate by length, not index
+  "optimal answer for every possible subarray/substring" → interval DP
+
+
+================================================================
+INTERVIEW TIPS
+================================================================
+
+- Before building table: ask "substring or subsequence?" — determines approach
+- Two-string DP: always draw (m+1)×(n+1) table, trace 3×3 example by hand
+- Interval DP: if going from dp[i+1][j-1], you NEED length-first iteration
+- State machine DP: draw states + arrows first, transitions become the code
+- When you see "number of ways" → DP, addition in recurrence
+- When you see "minimum/maximum" → DP, min/max in recurrence
+- Knapsack direction: one use → backwards. Reuse → forwards.
+- Strip the story first → what is the mathematical structure?
+
+================================================================

@@ -1,0 +1,295 @@
+================================================================
+DYNAMIC PROGRAMMING 1D — Interview Prep Notes
+================================================================
+
+REVISION FLAGS:
+  🔴 DEEP REVISION — re-attempt from scratch:
+      LC 213 — House Robber II (circular constraint)
+      LC 91  — Decode Ways (DP state definition)
+      LC 416 — Partition Equal Subset Sum (subset reduction insight)
+      LC 139 — Word Break (state = solve(index) for suffix)
+
+  🟡 ONE MORE PASS — re-trace the recurrence:
+      LC 198 — House Robber (dp[i-2] already stores best)
+      LC 322 — Coin Change (1D amount state vs 2D index+amount)
+
+  🟢 COMFORTABLE:
+      LC 70  — Climbing Stairs
+      LC 53  — Maximum Subarray (Kadane's)
+      LC 300 — LIS
+      LC 5   — Longest Palindromic Substring
+      LC 647 — Palindromic Substrings
+      LC 55  — Jump Game
+      LC 45  — Jump Game II
+
+================================================================
+
+THE CORE IDEA
+-------------
+DP = recursion + memory (memoization)
+   = building answers bottom-up (tabulation)
+
+Every sub-problem is solved ONCE and stored. Never recomputed.
+
+The mindset shift that unlocks DP:
+  WRONG: "How do I get to the answer?"
+  RIGHT: "If I already knew answers to smaller problems,
+          how would I build the answer to the current one?"
+
+THE 4-STEP FRAMEWORK (apply to every DP problem)
+--------------------------------------------------
+1. Define dp[i]          — what exactly does this value represent?
+2. Write the recurrence  — how does dp[i] relate to dp[i-1], dp[i-2]...?
+3. Identify base cases   — smallest sub-problems answered directly
+4. Iteration order       — usually left to right, smaller before larger
+
+
+================================================================
+TWO IMPLEMENTATIONS
+================================================================
+
+TOP-DOWN (Memoization) — recursion + cache:
+    int[] memo = new int[n+1];
+    Arrays.fill(memo, -1);
+
+    int solve(int n) {
+        if (n <= 1) return 1;
+        if (memo[n] != -1) return memo[n];
+        memo[n] = solve(n-1) + solve(n-2);
+        return memo[n];
+    }
+
+BOTTOM-UP (Tabulation) — iterative, preferred in interviews:
+    int[] dp = new int[n+1];
+    dp[0] = 1; dp[1] = 1;
+    for (int i = 2; i <= n; i++)
+        dp[i] = dp[i-1] + dp[i-2];
+    return dp[n];
+
+SPACE OPTIMIZATION — when dp[i] only needs last 1-2 values:
+    int prev2 = 1, prev1 = 1;
+    for (int i = 2; i <= n; i++) {
+        int curr = prev1 + prev2;
+        prev2 = prev1;
+        prev1 = curr;
+    }
+    return prev1;  // O(1) space
+
+
+================================================================
+5 CORE PATTERNS + RECOGNITION SIGNALS
+================================================================
+
+PATTERN 1: LINEAR DP
+---------------------
+Signal words: "number of ways to reach", "how many steps", "min cost path"
+dp[i] depends on a constant number of previous values.
+
+LC 70 — Climbing Stairs
+  Signal: "N steps, can take 1 or 2 at a time, how many ways"
+  dp[i] = dp[i-1] + dp[i-2]   (Fibonacci pattern)
+  Time: O(n), Space: O(1) optimized
+
+LC 198 — House Robber
+  Signal: "can't pick adjacent elements, maximize sum"
+  dp[i] = max(dp[i-1], dp[i-2] + nums[i])
+  KEY: dp[i-2] already stores the BEST value up to i-2, not just index i-2
+  Base: dp[0]=nums[0], dp[1]=max(nums[0],nums[1])
+  Time: O(n), Space: O(1) optimized
+
+LC 213 — House Robber II 🔴
+  Signal: same as House Robber but "arranged in a circle"
+  TRICK: run House Robber twice — exclude first OR exclude last, take max
+  Time: O(n), Space: O(1)
+
+
+PATTERN 2: KADANE'S ALGORITHM
+------------------------------
+Signal words: "maximum subarray", "contiguous subarray with largest sum",
+              "maximum sum of consecutive elements"
+Decision at each index: extend current subarray OR start fresh here.
+
+LC 53 — Maximum Subarray
+  currentSum = max(nums[i], currentSum + nums[i])
+  maxSum = max(maxSum, currentSum)
+  KEY: if currentSum < 0, starting fresh is always better
+  Time: O(n), Space: O(1)
+
+
+PATTERN 3: SEQUENCE DP (check all previous elements)
+------------------------------------------------------
+Signal words: "longest increasing/decreasing subsequence",
+              "minimum moves/deletions to sort",
+              "minimum elements to remove to make sorted"
+dp[i] depends on some or all dp[j] where j < i.
+
+LC 300 — Longest Increasing Subsequence (LIS)
+  Signal: "longest subsequence where each element is greater than previous"
+  dp[i] = length of LIS ending at index i
+  for each j < i: if nums[j] < nums[i] → dp[i] = max(dp[i], dp[j]+1)
+  Answer: max(dp[])
+  Time: O(n²), Space: O(n)
+  Optimal O(n log n): maintain a tails array + binary search
+
+  ★ DISGUISED LIS SIGNALS — these are all secretly LIS:
+    "minimum number of moves/operations to sort an array"
+      → answer = n - LIS(array)
+      → elements in LIS don't need to move, rest do
+    "minimum deletions to make array sorted"
+      → answer = n - LIS(array)
+    "minimum insertions to make array sorted"
+      → same as above
+    "robots/items rearrangement — minimum swaps/moves to restore order"
+      → find what's already in correct relative order (= LIS)
+      → move everything else = n - LIS
+
+  HOW TO SPOT: strip the story → "given a sequence, minimum changes to make it sorted"
+               → immediately think n - LIS
+
+LC 5 — Longest Palindromic Substring
+  Signal: "longest palindromic substring" (contiguous)
+  Technique: expand around center (not DP table)
+  For each index: expand odd-length and even-length palindromes
+  Time: O(n²), Space: O(1)
+
+LC 647 — Palindromic Substrings
+  Signal: "count all palindromic substrings"
+  Same expand-around-center, count += 1 every valid expansion
+  Time: O(n²), Space: O(1)
+
+
+PATTERN 4: DECISION DP (take or skip at each step)
+----------------------------------------------------
+Signal words: "minimum coins", "can we make sum X", "number of ways to make amount",
+              "partition into equal subsets", "can string be segmented"
+At each element, binary choice: include or exclude.
+
+LC 322 — Coin Change 🟡
+  Signal: "minimum number of coins to make amount, coins reusable"
+  dp[amount] = min coins to make that amount
+  For each coin: dp[j] = min(dp[j], dp[j-coin]+1)
+  Base: dp[0]=0, rest=MAX_VALUE
+  Iterate FORWARDS (reuse allowed — unbounded knapsack)
+  Time: O(amount × coins), Space: O(amount)
+
+LC 416 — Partition Equal Subset Sum 🔴
+  Signal: "can array be split into two equal-sum subsets"
+  Disguise alert: sounds like a partition problem, secretly a subset sum problem
+  Step 1: if total is odd → false. Target = total/2
+  Step 2: dp[j] = can we achieve sum j?
+  Iterate BACKWARDS (each element used once — 0/1 knapsack)
+  Base: dp[0] = true
+  Time: O(n × target), Space: O(target)
+
+LC 139 — Word Break 🔴
+  Signal: "can string be segmented into dictionary words",
+          "valid word combinations from string"
+  dp[i] = can s[0..i-1] be segmented?
+  KEY INSIGHT: state = index into string, not the words themselves
+  For each i: try all j < i, if dp[j]=true AND s[j..i-1] is a word → dp[i]=true
+  Base: dp[0] = true
+  Time: O(n² × wordLen), Space: O(n)
+
+LC 91 — Decode Ways 🔴
+  Signal: "number of ways to decode a digit string" (like phone keypad)
+  dp[i] = number of ways to decode s[0..i-1]
+  Single digit: if s[i-1] != '0' → dp[i] += dp[i-1]
+  Two digits: if 10 ≤ s[i-2..i-1] ≤ 26 AND s[i-2] != '0' → dp[i] += dp[i-2]
+  TRAP: "06" is NOT valid
+  Base: dp[0]=1, dp[1]= s[0]!='0' ? 1 : 0
+  Time: O(n), Space: O(1) optimized
+
+
+PATTERN 5: JUMP / REACH DP
+---------------------------
+Signal words: "can you reach the end", "minimum jumps to reach end",
+              "maximum reach from each position"
+
+LC 55 — Jump Game
+  Signal: "each element = max jump length, can you reach last index?"
+  Greedy DP: track farthest reachable index
+  if i > maxReach → return false
+  maxReach = max(maxReach, i + nums[i])
+  Time: O(n), Space: O(1)
+
+LC 45 — Jump Game II
+  Signal: same but "minimum number of jumps"
+  Greedy DP: jump only when you exhaust current range
+  Time: O(n), Space: O(1)
+
+
+================================================================
+★ MASTER SIGNAL TABLE — PATTERN RECOGNITION
+================================================================
+
+When you see this in a problem...        → Think this pattern
+
+"ways to reach / climb / step"           → Linear DP (Fibonacci-style)
+"can't pick adjacent, maximize"          → House Robber
+"maximum sum of contiguous subarray"     → Kadane's
+"longest increasing subsequence"         → LIS O(n²) or O(n log n)
+"min moves/deletions to sort array"      → n - LIS  ← DISGUISED LIS
+"robots/items, restore sorted order"     → n - LIS  ← DISGUISED LIS
+"minimum coins, coins reusable"          → Unbounded knapsack (forwards)
+"partition into equal subsets"           → Subset sum (backwards, 0/1 knapsack)
+"segment string into valid words"        → Word Break (index state)
+"decode digit string, how many ways"     → Decode Ways (check 1 and 2 digits)
+"can reach last index / minimum jumps"   → Jump Game greedy DP
+"longest palindromic SUBSTRING"          → Expand around center
+"count palindromic SUBSTRINGS"           → Expand around center, count
+"longest palindromic SUBSEQUENCE"        → Interval DP (dp-2d notes)
+
+
+================================================================
+PROBLEMS COVERED (13 total)
+================================================================
+
+🟢 COMFORTABLE
+LC 70  — Climbing Stairs        → Fibonacci, O(1) space
+LC 53  — Maximum Subarray       → Kadane's, extend or restart
+LC 300 — LIS                    → check all j<i, O(n²)
+LC 5   — Longest Palindromic    → expand around center
+LC 647 — Palindromic Substrings → expand, count each expansion
+LC 55  — Jump Game              → greedy, track maxReach
+LC 45  — Jump Game II           → greedy, jump at boundary
+
+🟡 ONE MORE PASS
+LC 198 — House Robber           → dp[i-2] = best up to i-2, not just index
+LC 322 — Coin Change            → 1D amount DP, forwards iteration
+
+🔴 DEEP REVISION
+LC 213 — House Robber II        → two separate runs, exclude first or last
+LC 91  — Decode Ways            → define state carefully, watch for '0'
+LC 416 — Partition Subset Sum   → reduce to subset sum, backwards iteration
+LC 139 — Word Break             → state = index, cut at every valid word
+
+
+================================================================
+COMMON INTERVIEW TRAPS
+================================================================
+
+1. Not defining dp[i] precisely before coding → wrong recurrence
+2. Wrong base cases → cascading wrong answers
+3. Iterating forwards when backwards needed (0/1 knapsack) → elements reused
+4. Forgetting edge cases (empty string, single element, odd sum)
+5. House Robber II — trying one pass for circular → break into two linear runs
+6. Decode Ways — not checking leading zero in two-digit case
+7. Word Break — trying to search words instead of thinking in index state
+8. Coin Change — initializing dp with 0 instead of MAX_VALUE
+9. LIS disguise — seeing "min moves to sort" and not connecting to n - LIS
+
+
+================================================================
+INTERVIEW TIPS
+================================================================
+
+- Before coding: say out loud "dp[i] represents..."
+- When stuck: strip the story → what is the mathematical structure?
+- Always ask: does current choice depend on future? Yes → DP. No → Greedy.
+- Always check: forwards or backwards iteration?
+- Space optimize only AFTER getting O(n) space solution working
+- "Maximum/minimum of something with choices" → almost always DP
+- "Count the number of ways" → almost always DP
+- "Is it possible to achieve X" → DP or greedy
+
+================================================================

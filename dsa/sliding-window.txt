@@ -1,0 +1,296 @@
+Sliding Window — DSA Intern Prep
+==================================
+
+
+TWO TYPES OF SLIDING WINDOW
+-----------------------------
+1. Fixed Window   — window size k stays constant throughout
+2. Variable Window— window expands/shrinks based on a condition
+
+
+TEMPLATES (memorize these)
+---------------------------
+
+Fixed Window:
+  // Build first window
+  for (int i = 0; i < k; i++) add nums[i] to window;
+  check/update answer;
+  // Slide
+  for (int i = k; i < n; i++) {
+      add nums[i];           // incoming element
+      remove nums[i-k];      // outgoing element
+      check/update answer;
+  }
+
+Variable Window:
+  int left = 0;
+  for (int right = 0; right < n; right++) {
+      add nums[right] to window;
+      while (window is INVALID) {
+          remove nums[left];
+          left++;
+      }
+      update answer;   // window is valid here
+  }
+
+Key distinction:
+  Fixed   → remove happens automatically (always remove nums[i-k])
+  Variable→ remove happens conditionally (while loop shrinks left)
+
+
+================================================================
+PROBLEMS COVERED
+================================================================
+
+
+1. MAXIMUM AVERAGE SUBARRAY I — LeetCode #643
+----------------------------------------------
+Problem: Find max average of any subarray of length k.
+
+Pattern: Fixed window.
+
+  public double findMaxAverage(int[] nums, int k) {
+      double sum = 0;
+      for (int i = 0; i < k; i++) sum += nums[i];
+      double result = sum / k;
+      for (int i = k; i < nums.length; i++) {
+          sum += nums[i];
+          sum -= nums[i-k];
+          result = Math.max(result, sum / k);
+      }
+      return result;
+  }
+
+Complexity: Time O(n)  Space O(1)
+
+
+2. FIND ALL ANAGRAMS IN STRING — LeetCode #438
+------------------------------------------------
+Problem: Find all start indices of p's anagrams in s.
+
+Pattern: Fixed window (size = p.length()) + frequency array.
+
+  public List<Integer> findAnagrams(String s, String p) {
+      List<Integer> result = new ArrayList<>();
+      if (s.length() < p.length()) return result;
+      int[] pCount = new int[26], wCount = new int[26];
+      for (char c : p.toCharArray()) pCount[c - 'a']++;
+      for (int i = 0; i < p.length(); i++) wCount[s.charAt(i) - 'a']++;
+      if (Arrays.equals(pCount, wCount)) result.add(0);
+      for (int i = p.length(); i < s.length(); i++) {
+          wCount[s.charAt(i) - 'a']++;
+          wCount[s.charAt(i - p.length()) - 'a']--;
+          if (Arrays.equals(pCount, wCount)) result.add(i - p.length() + 1);
+      }
+      return result;
+  }
+
+Arrays.equals on size-26 arrays = O(26) = O(1) constant.
+
+Complexity: Time O(n)  Space O(1)
+
+
+3. LONGEST SUBSTRING WITHOUT REPEATING CHARACTERS — LeetCode #3
+-----------------------------------------------------------------
+Problem: Find length of longest substring without duplicate characters.
+
+Pattern: Variable window. Shrink when duplicate enters.
+
+  public int lengthOfLongestSubstring(String s) {
+      HashSet<Character> set = new HashSet<>();
+      int maxLen = 0, left = 0;
+      for (int right = 0; right < s.length(); right++) {
+          while (set.contains(s.charAt(right))) {
+              set.remove(s.charAt(left++));
+          }
+          set.add(s.charAt(right));
+          maxLen = Math.max(maxLen, right - left + 1);
+      }
+      return maxLen;
+  }
+
+Window invalid when: duplicate character enters.
+Shrink until: duplicate is removed.
+
+Complexity: Time O(n)  Space O(n)
+
+
+4. MINIMUM SIZE SUBARRAY SUM — LeetCode #209
+----------------------------------------------
+Problem: Find minimum length subarray with sum >= target. Return 0 if none.
+
+Pattern: Variable window. Shrink when condition is MET (minimize window).
+
+  public int minSubArrayLen(int target, int[] nums) {
+      int left = 0, sum = 0, minLen = Integer.MAX_VALUE;
+      for (int right = 0; right < nums.length; right++) {
+          sum += nums[right];
+          while (sum >= target) {
+              minLen = Math.min(minLen, right - left + 1);
+              sum -= nums[left++];
+          }
+      }
+      return minLen == Integer.MAX_VALUE ? 0 : minLen;
+  }
+
+IMPORTANT distinction from other variable window problems:
+  Usually: shrink while INVALID
+  Here:    shrink while VALID (to find minimum)
+  Update answer INSIDE the while loop, not outside.
+
+Complexity: Time O(n)  Space O(1)
+
+
+5. MAX CONSECUTIVE ONES III — LeetCode #1004
+---------------------------------------------
+Problem: Flip at most k zeros to ones. Find longest subarray of ones.
+
+Pattern: Variable window. Window invalid when zeros > k.
+
+  public int longestOnes(int[] nums, int k) {
+      int left = 0, zeros = 0, maxLen = 0;
+      for (int right = 0; right < nums.length; right++) {
+          if (nums[right] == 0) zeros++;
+          while (zeros > k) {
+              if (nums[left] == 0) zeros--;
+              left++;
+          }
+          maxLen = Math.max(maxLen, right - left + 1);
+      }
+      return maxLen;
+  }
+
+Window invalid when: zeros > k (used more flips than allowed).
+Shrink until: zeros <= k.
+Same pattern as #3 — track a count, shrink when it exceeds limit.
+
+Complexity: Time O(n)  Space O(1)
+
+
+6. MINIMUM WINDOW SUBSTRING — LeetCode #76
+--------------------------------------------
+Problem: Find smallest window in s containing all chars of t.
+
+Pattern: Variable window. Track matchCount vs requiredMatches.
+
+  public String minWindow(String s, String t) {
+      if (s.length() < t.length()) return "";
+      int[] tCount = new int[128], wCount = new int[128];
+      for (char c : t.toCharArray()) tCount[c]++;
+
+      int requiredMatches = 0;
+      for (int count : tCount) if (count > 0) requiredMatches++;
+
+      int matchCount = 0, left = 0, minLen = Integer.MAX_VALUE, startIdx = -1;
+      for (int right = 0; right < s.length(); right++) {
+          char rc = s.charAt(right);
+          wCount[rc]++;
+          if (tCount[rc] > 0 && wCount[rc] == tCount[rc]) matchCount++;
+
+          while (matchCount == requiredMatches) {
+              if (right - left + 1 < minLen) {
+                  minLen = right - left + 1;
+                  startIdx = left;
+              }
+              char lc = s.charAt(left);
+              if (tCount[lc] > 0 && wCount[lc] == tCount[lc]) matchCount--;
+              wCount[lc]--;
+              left++;
+          }
+      }
+      return startIdx == -1 ? "" : s.substring(startIdx, startIdx + minLen);
+  }
+
+Key logic — matchCount tracking:
+  Add to matchCount ONLY when frequency exactly meets requirement (== not >)
+  Remove from matchCount ONLY when removing char breaks exact requirement (== before decrement)
+
+Why ==, not >=:
+  If wCount[c] > tCount[c], we already counted this match earlier (when it first equaled).
+  We only track the moment a requirement becomes satisfied or unsatisfied.
+
+requiredMatches = number of UNIQUE chars in t (not total chars).
+  t = "aab" → requiredMatches = 2 (need 'a' satisfied and 'b' satisfied)
+
+Complexity: Time O(s + t)  Space O(1)
+
+
+7. PERMUTATION IN STRING — LeetCode #567
+------------------------------------------
+Problem: Check if any permutation of s1 exists as substring of s2.
+
+Pattern: Fixed window (size = s1.length()) + matchCount tracking.
+         Same as #438 but returns boolean instead of indices.
+
+  public boolean checkInclusion(String s1, String s2) {
+      int[] s1Count = new int[128], wCount = new int[128];
+      for (char c : s1.toCharArray()) s1Count[c]++;
+
+      int required = 0;
+      for (int count : s1Count) if (count > 0) required++;
+
+      int matched = 0, w = s1.length();
+      for (int i = 0; i < s2.length(); i++) {
+          char c = s2.charAt(i);
+          wCount[c]++;
+          if (s1Count[c] > 0 && wCount[c] == s1Count[c]) matched++;
+
+          if (i >= w) {
+              char l = s2.charAt(i - w);
+              if (s1Count[l] > 0 && wCount[l] == s1Count[l]) matched--;
+              wCount[l]--;
+          }
+          if (matched == required) return true;
+      }
+      return false;
+  }
+
+Complexity: Time O(n)  Space O(1)
+
+
+================================================================
+VARIABLE WINDOW — WHAT MAKES IT VALID OR INVALID
+================================================================
+
+Problem                    | Window Invalid When      | Shrink Until
+---------------------------|--------------------------|------------------
+Longest no-repeat substr   | duplicate char enters    | duplicate removed
+Min subarray sum           | sum >= target (minimize) | sum < target
+Max consecutive ones III   | zeros > k                | zeros <= k
+Min window substring       | not all chars matched    | all chars matched
+
+
+================================================================
+FIXED vs VARIABLE — HOW TO IDENTIFY
+================================================================
+
+Fixed window:
+  Problem says "subarray/substring of length k"
+  Window size never changes
+
+Variable window:
+  Problem says "smallest/largest subarray that satisfies..."
+  No fixed size — window grows and shrinks based on condition
+
+
+================================================================
+COMMON MISTAKES
+================================================================
+
+1. #209 — updating answer outside while loop
+   WRONG: update after while → misses smaller valid windows
+   RIGHT: update INSIDE while → every valid window is checked before shrinking
+
+2. #76 — using >= instead of == for matchCount
+   WRONG: matchCount++ when wCount[c] >= tCount[c]
+   RIGHT: matchCount++ only when wCount[c] == tCount[c] (first time satisfied)
+
+3. #438, #567 — O(n*m) instead of O(n)
+   WRONG: rebuild window from scratch for each position
+   RIGHT: slide — add incoming char, remove outgoing char, check
+
+4. String operations inside window loop
+   WRONG: s.substring(), s.contains() inside loop → O(n) per step
+   RIGHT: char array or frequency array → O(1) per step
+
+5. Forgetting to handle s.length() < t.length() edge case in #76

@@ -1,0 +1,712 @@
+================================================================
+COMPUTER NETWORKS — Interview Prep Syllabus
+Target: Cisco + Microsoft interviews
+================================================================
+
+HOW TO USE THIS FILE
+---------------------
+- Follow modules in order (1 → 15)
+- After each module: notes saved to cn/<module-name>.txt
+- Mark each topic: [ ] not done | [x] done | [R] needs revision
+- Module 15 (Situation-Based) is the GOAL — every topic builds toward it
+- Read Module 15 first to know WHERE everything fits before you start
+
+Priority legend:
+  ★★★ = Must know deeply (almost certain to be asked)
+  ★★  = Know concept + 1 example
+  ★   = Just know what it is
+
+================================================================
+MODULE 1 — CN FOUNDATIONS                                  ★★★
+================================================================
+
+[ ] Why networks exist — what problem does a network solve?
+[ ] Network Types
+      LAN (Local Area Network) — what, where, speed
+      WAN (Wide Area Network) — what, where, internet is a WAN
+      MAN (Metropolitan Area Network) — city-scale
+[ ] Internet and Backbone Networks — how ISPs connect
+[ ] Clients, Servers, and Peers
+      Client-Server model vs Peer-to-Peer
+      Which protocols use which model
+[ ] How data moves in packets
+      Why packets (not one big stream)?
+      Packet: header + payload
+      Packets take different paths, reassembled at destination
+
+EXTRA (not in syllabus, important):
+[ ] What is a protocol? Why do we need standards?                ★★★
+[ ] Bandwidth vs Throughput vs Latency — differences            ★★★
+[ ] Unicast vs Broadcast vs Multicast                           ★★
+
+================================================================
+MODULE 2 — NETWORK MODELS                                  ★★★
+================================================================
+
+[ ] Why layered architecture?
+      Each layer solves one problem, talks only to adjacent layers
+      Separation of concerns — change one layer without breaking others
+[ ] OSI Model — 7 Layers (memorize: Please Do Not Throw Sausage Pizza Away)
+      7. Application  — user-facing protocols (HTTP, DNS, FTP)
+      6. Presentation — encryption, compression, encoding
+      5. Session      — session management, authentication
+      4. Transport    — end-to-end delivery (TCP, UDP), ports
+      3. Network      — routing, IP addressing
+      2. Data Link    — MAC addressing, error detection, framing
+      1. Physical     — bits over wire/wireless
+[ ] How data travels UP the OSI model (receiver side)
+[ ] TCP/IP Model — 4 Layers
+      Application (= OSI 5+6+7)
+      Transport   (= OSI 4)
+      Internet    (= OSI 3)
+      Network Access (= OSI 1+2)
+[ ] OSI vs TCP/IP — why TCP/IP won in practice
+[ ] Encapsulation (sender: add headers going down)
+      Decapsulation (receiver: strip headers going up)
+      Data → Segment → Packet → Frame → Bits
+
+EXTRA:
+[ ] PDU at each layer: Data, Segment, Packet, Frame, Bits         ★★★
+[ ] Which layer does a Router operate at? Switch? Hub?            ★★★
+
+================================================================
+MODULE 3 — PHYSICAL AND DATA LINK LAYER                    ★★
+================================================================
+
+PHYSICAL LAYER ★
+[ ] Physical Layer — converts bits to signals
+[ ] Transmission Media
+      Twisted Pair Cable — most common (Cat5, Cat6)
+      Fiber Optic Cable  — light signals, long distance, fast
+      Coaxial Cable      — older, cable TV
+[ ] Full duplex vs Half duplex vs Simplex
+      Full: both sides simultaneously (phone call)
+      Half: one at a time (walkie-talkie)
+      Simplex: one direction only (TV broadcast)
+
+DATA LINK LAYER ★★★
+[ ] What is the Data Link Layer? What does it do?
+      Framing, MAC addressing, error detection, access control
+[ ] MAC Address
+      48-bit hardware address (burned into NIC)
+      Format: XX:XX:XX:XX:XX:XX (hex)
+      OUI (first 3 bytes) = manufacturer
+      MAC vs IP — MAC is physical/local, IP is logical/global
+[ ] Error Detection
+      Parity bit — simplest, detects odd errors
+      Checksum — used in TCP/UDP
+      CRC (Cyclic Redundancy Check) — most reliable, used in Ethernet
+[ ] Medium Access Control (MAC protocols)
+      CSMA/CD — Carrier Sense Multiple Access / Collision Detection
+        Used in Ethernet (wired)
+        Sense before transmit, detect collision, back off and retry
+      CSMA/CA — Collision Avoidance (used in Wi-Fi)
+[ ] ARP — Address Resolution Protocol                             ★★★
+      Problem: I know IP, I need MAC address to send frame
+      ARP Request: broadcast "who has IP X?"
+      ARP Reply: "I have IP X, my MAC is Y"
+      ARP Cache: stores IP→MAC mappings temporarily
+      ARP Spoofing attack (security relevance)
+[ ] Network Access Control (basics)
+[ ] STP — Spanning Tree Protocol ★
+      Problem: switches connected in loops → broadcast storms
+      STP disables redundant links, keeps one active path
+      Elects Root Bridge, blocks non-optimal paths
+
+DEVICES ★★★
+[ ] Hub — Layer 1, broadcasts to all ports, no intelligence
+[ ] Switch — Layer 2, uses MAC table, sends only to correct port
+[ ] Router — Layer 3, uses IP, routes between networks
+[ ] Hub vs Switch vs Router — differences table (very frequently asked)
+
+EXTRA:
+[ ] Gratuitous ARP — what and why                                 ★★
+[ ] ARP in action: full flow from ping to packet delivery         ★★★
+[ ] Proxy ARP                                                     ★
+
+================================================================
+MODULE 4 — NETWORK TOPOLOGIES AND VLANs                    ★★
+================================================================
+
+[ ] Physical Topologies
+      Bus — single cable, all share, one failure = network down
+      Ring — each node connected to next, token passing
+      Star — all connected to central switch (most common today)
+      Mesh — every node to every other, redundant but expensive
+      Tree — hierarchical star, enterprise networks
+[ ] Hybrid Topology — combination (star + ring etc.)
+[ ] Logical Topologies — how data actually flows (may differ from physical)
+[ ] Ethernet Switching — how switches learn MAC addresses
+      Switch builds MAC table by observing source MACs
+      Flooding: if destination MAC unknown, send to all ports
+[ ] VLANs — Virtual LANs                                         ★★★
+      Segment one physical network into multiple logical networks
+      Traffic isolation without physical separation
+      VLAN ID in Ethernet frame header
+      Inter-VLAN routing requires a router or Layer 3 switch
+[ ] Switching vs Routing
+      Switching: Layer 2, same network, uses MAC
+      Routing: Layer 3, different networks, uses IP
+
+EXTRA:
+[ ] Trunk ports vs Access ports (VLAN tagging)                    ★★
+[ ] Why VLANs improve security                                    ★★
+
+================================================================
+MODULE 5 — NETWORK LAYER: IP ADDRESSING                    ★★★
+================================================================
+
+[ ] Introduction to Network Layer
+      Routing packets from source to destination across networks
+      Connectionless — each packet routed independently
+[ ] IPv4 Introduction
+      32-bit address, written in dotted decimal (x.x.x.x)
+      ~4.3 billion addresses (exhausted)
+[ ] IPv4 Datagram structure
+      Version, IHL, TTL, Protocol, Source IP, Destination IP
+      TTL — prevents packets looping forever, decremented at each hop
+[ ] IP Addressing Modes
+      Unicast — one to one
+      Broadcast — one to all (255.255.255.255)
+      Multicast — one to group
+[ ] Private vs Public IP                                          ★★★
+      Private: 10.x.x.x | 172.16-31.x.x | 192.168.x.x
+      Public: assigned by ISP, routable on internet
+      NAT bridges private ↔ public
+[ ] Classful Addressing (historical)
+      Class A: /8  (0.x.x.x – 127.x.x.x)
+      Class B: /16 (128.x.x.x – 191.x.x.x)
+      Class C: /24 (192.x.x.x – 223.x.x.x)
+      Class D: Multicast, Class E: Reserved
+[ ] Subnetting                                                    ★★★
+      Divide a network into smaller sub-networks
+      Subnet mask: which bits are network vs host
+      /24 = 255.255.255.0 = 256 addresses, 254 usable
+      Formula: 2^(host bits) - 2 = usable hosts
+      Practice: given IP and mask, find network address, broadcast, range
+[ ] CIDR — Classless Inter-Domain Routing                         ★★★
+      Replaced classful (more flexible)
+      192.168.1.0/26 = 64 addresses, 62 usable
+      Aggregation: combine smaller blocks into one route (supernetting)
+[ ] IPv6 Introduction                                             ★★
+      128-bit, written in hex (8 groups of 4 hex digits)
+      Solves IPv4 exhaustion
+      No broadcast (uses multicast instead)
+      Built-in IPSec support
+[ ] IPv6 Datagram — simplified header vs IPv4
+[ ] IPv6 over IPv4 — tunneling mechanisms (6in4, Teredo)
+
+EXTRA:
+[ ] ICMP — Internet Control Message Protocol                      ★★★
+      Used for ping, traceroute, error reporting
+      Ping: ICMP Echo Request → Echo Reply
+      Traceroute: TTL=1,2,3... each router sends ICMP Time Exceeded
+[ ] IP Fragmentation — what happens when packet too large for MTU  ★★
+      MTU (Maximum Transmission Unit) = 1500 bytes for Ethernet
+      Router fragments, destination reassembles
+[ ] Loopback address: 127.0.0.1                                   ★★★
+[ ] Default gateway — what it is and why needed                   ★★★
+
+================================================================
+MODULE 6 — NETWORK LAYER: ROUTING                          ★★
+================================================================
+
+[ ] Router vs Forwarding
+      Routing: building the routing table (control plane)
+      Forwarding: moving packet from input to output (data plane)
+[ ] Routing Tables — how a router decides where to send a packet
+      Destination, Subnet Mask, Next Hop, Interface, Metric
+      Longest prefix match rule
+[ ] Static Routing — manually configured, simple, no overhead
+[ ] Dynamic Routing — routers learn routes automatically
+[ ] Distance Vector Routing (RIP) ★
+      Each router knows distance to neighbors
+      Shares table with neighbors, adds hop count
+      Slow convergence, max 15 hops
+[ ] Routing Loop and Count-to-Infinity Problem ★
+      Fix: split horizon, route poisoning, hold-down timers
+[ ] Link State Routing (OSPF) ★★
+      Each router knows full topology
+      Dijkstra's algorithm for shortest path
+      Faster convergence than distance vector
+[ ] Hybrid Routing (EIGRP) ★
+      Cisco proprietary, combines distance vector + link state
+[ ] BGP — Border Gateway Protocol ★★
+      Routing between autonomous systems (internet backbone)
+      Path vector protocol, used by ISPs
+      Policy-based routing
+
+EXTRA:
+[ ] AS — Autonomous System (what it is)                           ★★
+[ ] Default route: 0.0.0.0/0 (gateway of last resort)            ★★
+
+================================================================
+MODULE 7 — TRANSPORT LAYER                                 ★★★
+================================================================
+
+[ ] Transport Layer Introduction
+      End-to-end communication between processes (not hosts)
+      Multiplexing via ports
+[ ] Ports and Sockets                                             ★★★
+      Port: 16-bit number identifying a process (0-65535)
+      Well-known: 0-1023 (HTTP=80, HTTPS=443, DNS=53, SSH=22)
+      Registered: 1024-49151
+      Ephemeral/Dynamic: 49152-65535 (client ports)
+      Socket = IP + Port (unique endpoint)
+      Connection = (src IP, src port, dst IP, dst port)
+
+UDP — User Datagram Protocol ★★★
+[ ] Connectionless — no handshake, no guarantee of delivery
+[ ] No ordering, no error recovery
+[ ] Header: Source port, Dest port, Length, Checksum (8 bytes only)
+[ ] Use cases: DNS, streaming, gaming, VoIP, DHCP
+[ ] Why use UDP? — speed, low latency, application handles reliability
+
+TCP — Transmission Control Protocol ★★★
+[ ] Connection-oriented — must establish connection first
+[ ] Reliable: acknowledgements, retransmission, ordering
+[ ] 3-Way Handshake (connection setup)
+      SYN → SYN-ACK → ACK
+      Why 3 steps? Both sides must confirm send AND receive capability
+[ ] 4-Way Handshake (connection teardown)
+      FIN → ACK → FIN → ACK
+[ ] Sequence and Acknowledgement numbers
+      SEQ: byte number of first byte in segment
+      ACK: next expected byte from other side
+[ ] Flow Control — Sliding Window                                  ★★★
+      Receiver advertises window size (rwnd)
+      Sender cannot send more than window allows
+      Prevents fast sender from overwhelming slow receiver
+[ ] Congestion Control                                            ★★★
+      Slow Start: begin with cwnd=1, double each RTT
+      Congestion Avoidance: linear increase after ssthresh
+      Fast Retransmit: 3 duplicate ACKs → retransmit immediately
+      Fast Recovery: halve cwnd instead of resetting to 1
+[ ] TCP vs UDP — when to choose which                             ★★★
+
+EXTRA:
+[ ] TCP head-of-line blocking — why HTTP/2 moved to QUIC          ★★
+[ ] TIME_WAIT state — why it exists (2*MSL)                       ★★
+[ ] Nagle's algorithm — batching small packets                     ★
+
+================================================================
+MODULE 8 — APPLICATION LAYER                               ★★★
+================================================================
+
+HTTP ★★★
+[ ] HTTP Request-Response Model
+      Client sends Request, Server sends Response
+      Stateless — each request independent
+[ ] HTTP Methods
+      GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS
+      Safe vs Idempotent methods
+[ ] HTTP Status Codes
+      1xx: Informational | 2xx: Success | 3xx: Redirect
+      4xx: Client Error | 5xx: Server Error
+      Know: 200, 201, 204, 301, 302, 304, 400, 401, 403, 404, 405, 500, 503
+[ ] HTTP Versions                                                  ★★★
+      HTTP/1.0 — new TCP connection per request
+      HTTP/1.1 — persistent connections, pipelining (head-of-line blocking)
+      HTTP/2   — multiplexing, header compression, binary framing
+      HTTP/3   — runs over QUIC (UDP-based), no head-of-line blocking
+[ ] HTTP/3 and QUIC
+      QUIC = UDP + reliability + TLS built in
+      Faster connection setup (0-RTT or 1-RTT)
+
+HTTPS and TLS ★★★
+[ ] HTTPS = HTTP + TLS encryption
+[ ] TLS Handshake (must know step by step)
+      1. Client Hello (supported cipher suites, random)
+      2. Server Hello (chosen cipher, certificate)
+      3. Certificate verification (CA chain)
+      4. Key exchange (Diffie-Hellman or RSA)
+      5. Session keys derived
+      6. Finished — encrypted communication begins
+[ ] Symmetric vs Asymmetric in TLS
+      Asymmetric for key exchange, symmetric for data (speed)
+[ ] Forward Secrecy — new session key every time, past sessions safe
+
+Web Auth ★★★
+[ ] Cookies — small data stored in browser, sent with every request
+[ ] Sessions — server-side state, session ID in cookie
+[ ] Tokens (JWT) — stateless, self-contained, signed
+[ ] Cookie vs Session vs Token — differences and when to use
+
+APIs and Real-time ★★★
+[ ] REST APIs
+      Stateless, uses HTTP methods, resources as URLs
+      JSON data format
+[ ] WebSockets                                                     ★★★
+      Full-duplex persistent connection
+      Starts as HTTP upgrade request
+      Use case: chat, live feeds, gaming
+      HTTP vs WebSocket — key differences
+
+Other Application Protocols ★★
+[ ] FTP — File Transfer Protocol (port 21), two connections (control + data)
+[ ] SMTP — Simple Mail Transfer Protocol (port 25/587) — sending email
+[ ] IMAP/POP3 — receiving email
+[ ] SSH — Secure Shell (port 22) — secure remote access
+
+================================================================
+MODULE 9 — NAT AND INTERNET EDGE NETWORKING               ★★★
+================================================================
+
+NAT — Network Address Translation ★★★
+[ ] Why NAT? — IPv4 exhaustion, private IPs can't reach internet
+[ ] NAT translates private IP:port → public IP:port
+[ ] NAT Packet Flow — outgoing and incoming
+[ ] Types of NAT
+      Static NAT — 1:1 mapping
+      Dynamic NAT — pool of public IPs
+      PAT (Port Address Translation) / NAT Overload — many:1 (most common)
+[ ] SNAT (Source NAT) vs DNAT (Destination NAT)
+[ ] Port Forwarding — DNAT for specific ports (e.g. hosting a server)
+[ ] NAT Limitations
+      Breaks end-to-end connectivity
+      Peer-to-peer difficult
+      IPv6 eliminates need for NAT
+
+DNS — Domain Name System ★★★
+[ ] What is DNS? — phonebook of the internet (domain → IP)
+[ ] DNS Resolution process (full step-by-step)
+      Browser cache → OS cache → Recursive Resolver →
+      Root Nameserver → TLD Nameserver → Authoritative Nameserver
+[ ] DNS Record Types                                              ★★★
+      A     — domain → IPv4
+      AAAA  — domain → IPv6
+      CNAME — alias to another domain
+      MX    — mail server
+      NS    — nameserver
+      TXT   — text (SPF, verification)
+      PTR   — reverse DNS (IP → domain)
+[ ] DNS Security
+      DNS Spoofing/Poisoning — attacker injects fake records
+      DNSSEC — digital signatures to verify DNS responses
+[ ] TTL in DNS — how long to cache a DNS record
+
+DHCP — Dynamic Host Configuration Protocol ★★★
+[ ] Automatically assigns IP, subnet mask, gateway, DNS to devices
+[ ] DORA process: Discover → Offer → Request → Acknowledge
+[ ] DHCP lease — temporary IP assignment
+[ ] DHCP server usually on router
+
+EXTRA:
+[ ] What is a CDN? How does DNS route to nearest CDN node?        ★★★
+[ ] Split-horizon DNS — internal vs external DNS views            ★
+
+================================================================
+MODULE 10 — SWITCHING TECHNIQUES                           ★
+================================================================
+
+[ ] Circuit Switching
+      Dedicated path for entire duration (telephone network)
+      Guaranteed bandwidth, wasteful when idle
+[ ] Packet Switching                                              ★★
+      Data split into packets, each routed independently
+      Better utilization, no dedicated path
+      Datagram: each packet routed independently (IP)
+      Virtual Circuit: path established first, packets follow it (ATM)
+[ ] MPLS — Multi-Protocol Label Switching
+      Labels for fast forwarding without IP lookup at each hop
+      Used in ISP backbone networks
+[ ] Message Switching — store and forward entire message (old)
+[ ] Circuit vs Packet vs Message — comparison
+
+================================================================
+MODULE 11 — NETWORK SECURITY                               ★★★
+================================================================
+
+[ ] CIA Triad                                                     ★★★
+      Confidentiality — only authorized can read (encryption)
+      Integrity — data not tampered (hashing, signatures)
+      Availability — system accessible when needed (redundancy, DDoS mitigation)
+[ ] AAA Framework                                                 ★★★
+      Authentication — who are you? (password, MFA, certificates)
+      Authorization — what can you do? (permissions, roles)
+      Accounting — what did you do? (logs, audit trails)
+[ ] Common Network Security Threats                               ★★★
+      Man-in-the-Middle (MITM)
+      DDoS — Distributed Denial of Service
+      DNS Spoofing / Cache Poisoning
+      ARP Spoofing
+      Packet Sniffing
+      SQL Injection (application layer)
+      Phishing
+[ ] Firewalls and Types                                           ★★★
+      L3 (Packet Filter): checks IP/port, stateless
+      L4 (Stateful): tracks connection state
+      L7 (Application/WAF): deep inspection, understands HTTP
+[ ] IDPS — Intrusion Detection and Prevention System
+      IDS: monitors and alerts
+      IPS: monitors and actively blocks
+[ ] VPNs — Virtual Private Networks                              ★★★
+      Encrypts traffic, tunnels through public internet
+      IPSec VPN — site-to-site
+      SSL/TLS VPN — remote access (HTTPS-based)
+      Use case: remote work, bypass geo-restriction
+[ ] Zero Trust Architecture                                       ★★
+      Never trust, always verify
+      No implicit trust based on network location
+      Every request authenticated regardless of origin
+
+EXTRA:
+[ ] HTTPS as security — why HTTP over public Wi-Fi is dangerous   ★★★
+[ ] SSL Stripping attack                                          ★★
+[ ] Certificate Pinning — what and why                           ★★
+
+================================================================
+MODULE 12 — CRYPTOGRAPHY AND SECURE PROTOCOLS             ★★★
+================================================================
+
+Fundamentals ★★★
+[ ] Security goals: Confidentiality, Integrity, Authentication, Non-repudiation
+[ ] Plaintext → Encrypt (key) → Ciphertext → Decrypt (key) → Plaintext
+
+Encryption ★★★
+[ ] Symmetric Encryption — same key for encrypt and decrypt
+      Fast, used for bulk data
+      AES (Advanced Encryption Standard) — most common today
+      DES — old, broken, 56-bit key
+      Key distribution problem: how to share the key securely?
+[ ] Asymmetric Cryptography — public key + private key pair
+      Public key: anyone can have it (encrypt or verify)
+      Private key: only owner has it (decrypt or sign)
+      RSA — most common asymmetric algorithm
+      Slow — used only for key exchange, not bulk data
+[ ] Diffie-Hellman Key Exchange                                   ★★★
+      Two parties agree on shared secret over insecure channel
+      Neither side sends the secret directly
+      Foundation of forward secrecy in TLS
+[ ] Hybrid Encryption — asymmetric for key exchange, symmetric for data
+      Used in TLS, HTTPS
+
+Hashing ★★★
+[ ] Hash Functions — one-way, fixed output length
+      MD5 (broken), SHA-1 (deprecated), SHA-256, SHA-3
+      Same input → always same hash
+      Tiny change in input → completely different hash (avalanche effect)
+      Cannot reverse hash to get input
+[ ] MAC (Message Authentication Code) — hash + secret key
+      Verifies integrity AND authenticity
+[ ] HMAC — Hash-based MAC (industry standard)
+[ ] Digital Signatures                                            ★★★
+      Sign: hash the message, encrypt hash with PRIVATE key
+      Verify: decrypt with PUBLIC key, compare with hash of message
+      Provides: integrity + authentication + non-repudiation
+
+PKI and Certificates ★★★
+[ ] Certificate Authority (CA) — trusted third party that signs certificates
+[ ] Certificate contains: public key + identity + CA signature
+[ ] Chain of Trust: Root CA → Intermediate CA → End Certificate
+[ ] Browser verifies certificate before trusting HTTPS site
+[ ] PKI — Public Key Infrastructure (system of CAs and certificates)
+[ ] Certificate Pinning — app hardcodes expected certificate (prevents MITM)
+
+TLS ★★★
+[ ] TLS (Transport Layer Security) — successor to SSL (SSL is broken/deprecated)
+[ ] TLS Handshake (know this step by step — Cisco will ask)
+      1. ClientHello: TLS version, cipher suites, random nonce
+      2. ServerHello: chosen cipher, server random, certificate
+      3. Client verifies certificate (CA chain)
+      4. Key Exchange: Diffie-Hellman ephemeral (ECDHE)
+      5. Both derive session keys from shared secret + randoms
+      6. ChangeCipherSpec + Finished (both sides)
+      7. Encrypted communication begins
+[ ] Forward Secrecy — session key derived fresh each time
+      Even if private key leaked later, past sessions cannot be decrypted
+
+================================================================
+MODULE 13 — WIRELESS NETWORKING                            ★
+================================================================
+
+[ ] Basics of Wireless Networking — radio waves, frequency bands
+[ ] Wi-Fi Joining Flow — Probe, Authentication, Association
+[ ] Wi-Fi Security Standards
+      WEP — broken, never use
+      WPA — transitional, weak
+      WPA2 — AES, still common
+      WPA3 — latest, stronger handshake (SAE)
+[ ] WPA2 4-Way Handshake — derives session keys (PTK)
+[ ] IEEE 802.11 standards — 802.11n, 802.11ac (Wi-Fi 5), 802.11ax (Wi-Fi 6)
+[ ] CSMA/CA — how Wi-Fi avoids collisions (wait + random backoff)
+[ ] 2.4 GHz vs 5 GHz — range vs speed tradeoff
+
+EXTRA (interview relevant):
+[ ] Why is public Wi-Fi dangerous? What attacks are possible?     ★★★
+[ ] Evil Twin attack — rogue AP impersonating legitimate Wi-Fi    ★★
+
+================================================================
+MODULE 14 — NETWORK PERFORMANCE                            ★★★
+================================================================
+
+Metrics ★★★
+[ ] Latency — time for one packet to travel source → destination
+[ ] Bandwidth — maximum data rate on a link
+[ ] Throughput — actual data rate achieved
+[ ] RTT (Round Trip Time) — latency × 2 (there and back)
+[ ] TTFB (Time to First Byte) — when browser gets first byte of response
+[ ] Jitter — variation in latency (bad for video/voice)
+[ ] Packet Loss — % of packets that don't arrive
+
+[ ] Latency Sources and Delays
+      Propagation delay — speed of signal in medium
+      Transmission delay — time to put bits on wire (size/bandwidth)
+      Processing delay — time router takes to process header
+      Queuing delay — time waiting in router buffer
+[ ] Congestion and Bufferbloat
+[ ] QoS — Quality of Service (prioritize traffic types)
+
+Rate Limiting ★★★
+[ ] What is rate limiting? — limit requests per time window
+[ ] Fixed Window Counter — simple, edge case at window boundary
+[ ] Sliding Window Log — accurate, high memory
+[ ] Sliding Window Counter — approximate, memory efficient
+[ ] Token Bucket — tokens added at fixed rate, burst allowed
+[ ] Leaky Bucket — output at fixed rate, smooths bursts
+[ ] Token Bucket vs Leaky Bucket — burst handling difference
+[ ] Concurrency Limiter — limit simultaneous connections
+
+Load Balancing ★★★
+[ ] What is a Load Balancer? — distributes traffic across servers
+[ ] L4 Load Balancer — routes by IP/port, fast, no content inspection
+[ ] L7 Load Balancer — routes by URL/headers/cookies, smart routing
+[ ] Load Balancing Algorithms
+      Round Robin — requests distributed equally in order
+      Weighted Round Robin — more traffic to stronger servers
+      Least Connections — send to server with fewest active connections
+      IP Hash — same client always goes to same server (sticky sessions)
+      Random — random server selection
+[ ] Health checks — LB removes unhealthy servers automatically
+
+CDN ★★★
+[ ] CDN — Content Delivery Network
+      Caches static content at edge nodes near users
+      Reduces latency, origin server load, bandwidth
+[ ] CDN Cache Lifecycle — origin pull, TTL, cache invalidation
+[ ] How DNS routes to nearest CDN node (anycast or GeoDNS)
+
+================================================================
+MODULE 15 — SITUATION-BASED (THE FINAL GOAL)             ★★★
+================================================================
+
+These 4 scenarios test whether you understand everything holistically.
+Prepare a clear verbal answer for each — interview gold.
+
+[ ] SCENARIO 1: What happens when you type google.com and press Enter?
+      DNS resolution → TCP connection → TLS handshake →
+      HTTP request → Server processes → HTTP response →
+      Browser renders page
+      (Full flow: every layer of OSI in action)
+
+[ ] SCENARIO 2: What happens when DNS fails?
+      Browser cache miss → OS cache miss → Resolver fails →
+      Timeout → Cannot resolve → Connection refused
+      Fallback: /etc/hosts file, secondary DNS server
+
+[ ] SCENARIO 3: What happens when you connect to public Wi-Fi?
+      DHCP: get IP, gateway, DNS
+      Security risks: MITM, evil twin, packet sniffing
+      Why HTTPS protects you even on untrusted network
+      VPN as extra protection
+
+[ ] SCENARIO 4: How does a CDN serve an image/video?
+      User DNS request → CDN DNS (GeoDNS/anycast) → nearest edge node
+      Cache hit: serve immediately
+      Cache miss: fetch from origin, cache, serve
+      TTL expiry → re-fetch
+
+================================================================
+EXTRA TOPICS (added beyond the 15 modules)               ★★
+================================================================
+
+These were missing from the syllabus but frequently asked:
+
+[ ] Proxy vs Reverse Proxy                                        ★★★
+      Forward Proxy: client-side, hides client from server
+      Reverse Proxy: server-side, hides server from client (nginx)
+      Use cases: caching, load balancing, SSL termination
+
+[ ] ICMP in depth                                                 ★★★
+      Ping: Echo Request/Reply
+      Traceroute: TTL=1, 2, 3... forces ICMP Time Exceeded at each hop
+
+[ ] SSH — Secure Shell                                            ★★
+      Encrypted remote login (port 22)
+      Uses asymmetric key auth or password
+      Replaces Telnet (unencrypted)
+
+[ ] TCP vs UDP real-world use cases                               ★★★
+      TCP: HTTP, HTTPS, SSH, FTP, SMTP, database connections
+      UDP: DNS, DHCP, VoIP, video streaming, gaming, QUIC
+
+[ ] Ports to memorize                                             ★★★
+      20/21 — FTP (data/control)
+      22    — SSH
+      23    — Telnet (insecure)
+      25    — SMTP
+      53    — DNS
+      67/68 — DHCP (server/client)
+      80    — HTTP
+      110   — POP3
+      143   — IMAP
+      443   — HTTPS
+      3306  — MySQL
+      5432  — PostgreSQL
+      6379  — Redis
+      27017 — MongoDB
+
+[ ] Bandwidth vs Latency vs Throughput — exact definitions        ★★★
+
+[ ] What is a socket? How does accept() work in TCP server?       ★★
+
+[ ] Long Polling vs WebSockets vs SSE                             ★★
+      Long Polling: client waits for response (hacky real-time)
+      WebSocket: true full-duplex, single persistent connection
+      SSE (Server-Sent Events): server pushes, client reads only
+
+================================================================
+NOTES FILES TO CREATE (one per module)
+================================================================
+
+cn/
+  syllabus.txt         ← this file
+  01-foundations.txt
+  02-network-models.txt
+  03-data-link-layer.txt
+  04-topologies-vlan.txt
+  05-ip-addressing.txt
+  06-routing.txt
+  07-transport-layer.txt
+  08-application-layer.txt
+  09-nat-dns-dhcp.txt
+  10-switching-techniques.txt
+  11-network-security.txt
+  12-cryptography-tls.txt
+  13-wireless.txt
+  14-network-performance.txt
+  15-situation-based.txt
+
+================================================================
+INTERVIEW QUICK FACTS (fill in as you go)
+================================================================
+
+OSI layers (top to bottom): Application, Presentation, Session,
+  Transport, Network, Data Link, Physical
+TCP/IP layers: Application, Transport, Internet, Network Access
+
+3-Way Handshake: SYN → SYN-ACK → ACK
+4-Way Teardown:  FIN → ACK → FIN → ACK
+
+Private IP ranges:
+  10.0.0.0/8
+  172.16.0.0/12
+  192.168.0.0/16
+
+Key ports: HTTP=80, HTTPS=443, DNS=53, SSH=22, FTP=21, SMTP=25, DHCP=67/68
+
+CIA = Confidentiality, Integrity, Availability
+AAA = Authentication, Authorization, Accounting
+
+TLS uses: Asymmetric (key exchange) + Symmetric (data transfer)
+================================================================

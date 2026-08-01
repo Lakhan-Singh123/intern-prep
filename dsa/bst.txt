@@ -1,0 +1,196 @@
+================================================================
+BST — Binary Search Tree — Interview Prep Notes
+================================================================
+
+CORE PROPERTY
+-------------
+For every node:
+  - All values in LEFT subtree  < node.val
+  - All values in RIGHT subtree > node.val
+  - This holds for EVERY node, not just the root
+
+This property enables O(h) search, insert, delete.
+Balanced BST → h = log n → O(log n) operations.
+
+INORDER REVELATION
+------------------
+Inorder traversal (Left → Root → Right) of ANY BST = sorted ascending order.
+This is the most useful BST property in interviews.
+Kth smallest, sorted output, min difference → think inorder first.
+
+
+================================================================
+CORE OPERATIONS
+================================================================
+
+SEARCH — O(h)
+    TreeNode search(TreeNode root, int target) {
+        if (root == null) return null;
+        if (target == root.val) return root;
+        if (target < root.val) return search(root.left, target);
+        return search(root.right, target);
+    }
+
+INSERT — O(h)
+    TreeNode insert(TreeNode root, int val) {
+        if (root == null) return new TreeNode(val);  // correct spot found
+        if (val < root.val) root.left  = insert(root.left, val);
+        else                root.right = insert(root.right, val);
+        return root;
+    }
+    New nodes always become leaves.
+
+DELETE — O(h) — three cases:
+    Case 1: node is a leaf           → return null
+    Case 2: node has one child       → return that child
+    Case 3: node has two children    → replace with inorder successor
+                                       (leftmost node of right subtree)
+
+    TreeNode delete(TreeNode root, int key) {
+        if (root == null) return null;
+        if (key < root.val) { root.left  = delete(root.left, key); }
+        else if (key > root.val) { root.right = delete(root.right, key); }
+        else {
+            if (root.left  == null) return root.right;
+            if (root.right == null) return root.left;
+            TreeNode successor = findMin(root.right);
+            root.val = successor.val;
+            root.right = delete(root.right, successor.val);
+        }
+        return root;
+    }
+
+    TreeNode findMin(TreeNode node) {
+        while (node.left != null) node = node.left;
+        return node;
+    }
+
+
+================================================================
+4 CORE PATTERNS
+================================================================
+
+PATTERN 1: BST NAVIGATION (go left or right at each node)
+-----------------------------------------------------------
+At every node, BST property tells you exactly where to go:
+  target < root.val → go left
+  target > root.val → go right
+  target == root.val → found it / diverge here
+
+Used for: search, insert, delete, LCA, closest value
+
+LCA of BST (LC 235):
+    TreeNode lowestCommonAncestor(TreeNode root, TreeNode p, TreeNode q) {
+        if (p.val < root.val && q.val < root.val)
+            return lowestCommonAncestor(root.left, p, q);
+        if (p.val > root.val && q.val > root.val)
+            return lowestCommonAncestor(root.right, p, q);
+        return root;  // paths diverge here → this is LCA
+    }
+    Time: O(h)  — much simpler than general binary tree LCA
+
+
+PATTERN 2: INORDER = SORTED
+-----------------------------
+Any problem involving sorted order, kth element, or adjacent differences
+→ run inorder and process nodes in that order
+
+Kth Smallest (LC 230):
+    int count = 0, result = 0;
+    void inorder(TreeNode node, int k) {
+        if (node == null) return;
+        inorder(node.left, k);
+        if (++count == k) { result = node.val; return; }
+        inorder(node.right, k);
+    }
+
+Min Absolute Difference (LC 530):
+    TreeNode prev = null;
+    int minDiff = Integer.MAX_VALUE;
+    void inorder(TreeNode node) {
+        if (node == null) return;
+        inorder(node.left);
+        if (prev != null) minDiff = Math.min(minDiff, node.val - prev.val);
+        prev = node;
+        inorder(node.right);
+    }
+    Key: track previous inorder node — min diff is always between adjacent inorder nodes
+
+
+PATTERN 3: VALIDATE WITH RANGE (top-down)
+------------------------------------------
+WRONG: check only immediate children (misses deep violations)
+RIGHT: pass valid (min, max) range down — every node must satisfy its full range
+
+    boolean isValidBST(TreeNode root) {
+        return validate(root, Long.MIN_VALUE, Long.MAX_VALUE);
+    }
+    boolean validate(TreeNode node, long min, long max) {
+        if (node == null) return true;
+        if (node.val <= min || node.val >= max) return false;
+        return validate(node.left,  min, node.val) &&
+               validate(node.right, node.val, max);
+    }
+    Use Long (not int) to handle Integer.MIN/MAX_VALUE edge cases
+
+
+PATTERN 4: CONSTRUCT BALANCED BST
+-----------------------------------
+Sorted array → BST: middle element becomes root (keeps tree balanced)
+Same divide-and-conquer structure as binary search
+
+    TreeNode sortedArrayToBST(int[] nums) {
+        return build(nums, 0, nums.length - 1);
+    }
+    TreeNode build(int[] nums, int left, int right) {
+        if (left > right) return null;
+        int mid = left + (right - left) / 2;
+        TreeNode root = new TreeNode(nums[mid]);
+        root.left  = build(nums, left, mid - 1);
+        root.right = build(nums, mid + 1, right);
+        return root;
+    }
+
+
+================================================================
+PROBLEMS COVERED (8 total)
+================================================================
+
+EASY
+----
+LC 700 — Search in BST          → BST navigation
+LC 701 — Insert into BST        → BST navigation, new node = leaf
+LC 108 — Sorted Array to BST    → mid = root, divide and conquer
+LC 530 — Min Absolute Diff      → inorder + track prev node
+
+MEDIUM
+------
+LC 98  — Validate BST           → pass (min,max) range top-down, use Long
+LC 230 — Kth Smallest           → inorder, count until k
+LC 235 — LCA of BST             → BST navigation, paths diverge at LCA
+LC 450 — Delete Node in BST     → three cases, inorder successor for case 3
+
+
+================================================================
+COMMON INTERVIEW TRAPS
+================================================================
+
+1. Validate: checking only children  → use full range (min,max) top-down
+2. Validate: using Integer bounds    → use Long.MIN/MAX_VALUE for edge cases
+3. Delete case 3: forgetting to delete the successor after copying its value
+4. LCA: using general binary tree approach → BST LCA is O(h), much simpler
+5. Kth smallest: counting wrong     → inorder gives sorted order, count carefully
+6. Min diff: comparing non-adjacent → only adjacent inorder nodes give minimum
+
+
+================================================================
+INTERVIEW TIPS
+================================================================
+
+- Inorder = sorted. If the problem smells like order/rank → go inorder
+- BST problems are almost always O(h) — mention this and note h=logn if balanced
+- Validate BST is a top favourite — know the range approach cold
+- LCA in BST vs general tree: BST is O(h), general tree is O(n) — different solutions
+- Delete is asked less often but case 3 (inorder successor) is a common follow-up
+
+================================================================

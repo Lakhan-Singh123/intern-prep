@@ -1,0 +1,294 @@
+Strings — DSA Intern Prep
+=========================
+
+
+CORE PATTERNS
+-------------
+1. Two Pointers        — palindrome checks, reversals, in-place
+2. Frequency Array     — anagram detection, character counting
+3. HashMap + Sort key  — grouping equivalent strings
+4. Sliding Window      — substring problems with a window condition
+5. Expand Around Center— palindrome substring problems
+6. Character Arithmetic— 'a'-'a'=0, 'z'-'a'=25, digit: c-'0'
+
+
+CRITICAL RULES
+--------------
+- Always use .equals() to compare strings, NEVER ==
+- Strings are immutable — every operation returns a NEW string, original unchanged
+- Use StringBuilder for building strings in loops (O(n) vs O(n²))
+- O(1) space constraint → never create a cleaned copy, use two pointers directly
+- For char frequency: int[] freq = new int[26], index = ch - 'a'
+
+
+================================================================
+PROBLEMS COVERED
+================================================================
+
+
+1. VALID PALINDROME — LeetCode #125
+-------------------------------------
+Problem: Check if string is palindrome ignoring non-alphanumeric chars and case.
+
+Pattern: Two pointers directly on original string (O(1) space).
+         Skip non-alphanumeric chars using Character.isLetterOrDigit().
+
+  public boolean isPalindrome(String s) {
+      int left = 0, right = s.length() - 1;
+      while (left < right) {
+          while (left < right && !Character.isLetterOrDigit(s.charAt(left)))
+              left++;
+          while (left < right && !Character.isLetterOrDigit(s.charAt(right)))
+              right--;
+          if (Character.toLowerCase(s.charAt(left)) !=
+              Character.toLowerCase(s.charAt(right)))
+              return false;
+          left++;
+          right--;
+      }
+      return true;
+  }
+
+Common mistake: Cleaning the string first with replaceAll → O(n) space violation.
+O(1) space means never copy/clean — work on original with skip conditions.
+
+Complexity: Time O(n)  Space O(1)
+
+
+2. VALID ANAGRAM — LeetCode #242
+----------------------------------
+Problem: Check if two strings are anagrams (same chars, same frequency).
+
+Pattern 1 — Sort both char arrays, compare (O(n log n))
+  char[] c = s.toCharArray(); Arrays.sort(c);
+  char[] d = t.toCharArray(); Arrays.sort(d);
+  return Arrays.equals(c, d);
+
+Pattern 2 — Frequency array (O(n)), optimal
+  public boolean isAnagram(String s, String t) {
+      if (s.length() != t.length()) return false;
+      int[] freq = new int[26];
+      for (char c : s.toCharArray()) freq[c - 'a']++;
+      for (char c : t.toCharArray()) freq[c - 'a']--;
+      for (int count : freq) if (count != 0) return false;
+      return true;
+  }
+
+Key: increment for s, decrement for t → if truly anagram all cancel to 0.
+Shortcut: if (condition) return true; return false; → just write return condition;
+
+Complexity: Time O(n)  Space O(1) (fixed 26-size array)
+
+
+3. GROUP ANAGRAMS — LeetCode #49
+----------------------------------
+Problem: Group strings that are anagrams of each other.
+
+Key insight: Two anagrams always have the same sorted form.
+             "eat","tea","ate" all sort to "aet" → use as HashMap key.
+
+  public List<List<String>> groupAnagrams(String[] strs) {
+      HashMap<String, List<String>> map = new HashMap<>();
+      for (String s : strs) {
+          char[] chars = s.toCharArray();
+          Arrays.sort(chars);
+          String key = new String(chars);
+          map.computeIfAbsent(key, k -> new ArrayList<>()).add(s);
+      }
+      return new ArrayList<>(map.values());
+  }
+
+computeIfAbsent(key, k -> new ArrayList<>()).add(s)
+= if key not in map, create new list, then add s to it. One line.
+
+Equivalent verbose version:
+  if (!map.containsKey(key)) map.put(key, new ArrayList<>());
+  map.get(key).add(s);
+
+Pattern: "group by equivalence" → HashMap with canonical form as key.
+
+Complexity: Time O(n × m log m)  Space O(n × m)
+
+
+4. LONGEST SUBSTRING WITHOUT REPEATING CHARS — LeetCode #3
+-------------------------------------------------------------
+Problem: Find length of longest substring without duplicate characters.
+
+Pattern: Sliding window with HashSet.
+Expand right always. Shrink from left when duplicate enters.
+
+  public int lengthOfLongestSubstring(String s) {
+      HashSet<Character> set = new HashSet<>();
+      int maxLen = 0, left = 0;
+      for (int right = 0; right < s.length(); right++) {
+          char c = s.charAt(right);
+          while (set.contains(c)) {
+              set.remove(s.charAt(left));
+              left++;
+          }
+          set.add(c);
+          maxLen = Math.max(maxLen, right - left + 1);
+      }
+      return maxLen;
+  }
+
+SLIDING WINDOW TEMPLATE (memorize this):
+  int left = 0;
+  for (int right = 0; right < n; right++) {
+      // 1. add s[right] to window
+      // 2. shrink from left while window is invalid
+      while (window is invalid) {
+          // remove s[left]
+          left++;
+      }
+      // 3. update answer — window is now valid
+      maxLen = Math.max(maxLen, right - left + 1);
+  }
+
+Complexity: Time O(n)  Space O(min(n, charset))
+
+
+5. PALINDROMIC SUBSTRINGS — LeetCode #647
+------------------------------------------
+Problem: Count all palindromic substrings.
+
+Pattern: Expand around center.
+         n centers for odd-length, n-1 centers for even-length = 2n-1 total.
+
+  public int countSubstrings(String s) {
+      int count = 0;
+      for (int i = 0; i < s.length(); i++) {
+          // odd length — single center
+          int l = i, h = i;
+          while (l >= 0 && h < s.length() && s.charAt(l) == s.charAt(h)) {
+              count++; l--; h++;
+          }
+          // even length — two centers
+          l = i; h = i + 1;
+          while (l >= 0 && h < s.length() && s.charAt(l) == s.charAt(h)) {
+              count++; l--; h++;
+          }
+      }
+      return count;
+  }
+
+Common mistake: even-length expansion → compare s[l] vs s[h], NOT vs center.
+  WRONG: s.charAt(l) == s.charAt(i)  (comparing to center)
+  RIGHT: s.charAt(l) == s.charAt(h)  (comparing left vs right)
+
+Complexity: Time O(n²)  Space O(1)
+
+
+6. LONGEST PALINDROMIC SUBSTRING — LeetCode #5
+------------------------------------------------
+Problem: Find the longest palindromic substring.
+
+Pattern: Expand around center, track start index and max length.
+
+  public String longestPalindrome(String s) {
+      int start = 0, maxLen = 0;
+      for (int i = 0; i < s.length(); i++) {
+          int odd  = expand(s, i, i);
+          int even = expand(s, i, i + 1);
+          int len  = Math.max(odd, even);
+          if (len > maxLen) {
+              maxLen = len;
+              start  = i - (len - 1) / 2;
+          }
+      }
+      return s.substring(start, start + maxLen);
+  }
+
+  private int expand(String s, int l, int r) {
+      while (l >= 0 && r < s.length() && s.charAt(l) == s.charAt(r)) {
+          l--; r++;
+      }
+      return r - l - 1;  // actual palindrome length
+  }
+
+Why r - l - 1:
+  After while exits: l is 1 BEFORE start, r is 1 AFTER end.
+  Actual length = (r-1) - (l+1) + 1 = r - l - 1
+
+Why i - (len-1)/2 for start index:
+  Odd  "bab" len=3, center i=1 → start = 1 - 1 = 0 ✓
+  Even "bb"  len=2, center i=1 → start = 1 - 0 = 1 ✓
+
+Complexity: Time O(n²)  Space O(1)
+
+
+7. FIND ALL ANAGRAMS IN STRING — LeetCode #438
+------------------------------------------------
+Problem: Find all start indices of anagram substrings of p in s.
+
+Pattern: Fixed-size sliding window with frequency array comparison.
+
+  public List<Integer> findAnagrams(String s, String p) {
+      List<Integer> result = new ArrayList<>();
+      if (s.length() < p.length()) return result;
+
+      int[] pCount = new int[26];
+      int[] wCount = new int[26];
+
+      for (char c : p.toCharArray()) pCount[c - 'a']++;
+      for (int i = 0; i < p.length(); i++) wCount[s.charAt(i) - 'a']++;
+
+      if (Arrays.equals(pCount, wCount)) result.add(0);
+
+      for (int i = p.length(); i < s.length(); i++) {
+          wCount[s.charAt(i) - 'a']++;               // add incoming char
+          wCount[s.charAt(i - p.length()) - 'a']--;  // remove outgoing char
+          if (Arrays.equals(pCount, wCount))
+              result.add(i - p.length() + 1);
+      }
+      return result;
+  }
+
+FIXED WINDOW TEMPLATE:
+  Build first window of size k
+  Check condition
+  for i from k to n-1:
+      add s[i]          (incoming)
+      remove s[i-k]     (outgoing)
+      check condition
+
+Arrays.equals on size-26 arrays = O(26) = O(1) constant.
+
+Complexity: Time O(n)  Space O(1)
+
+
+================================================================
+PATTERNS SUMMARY
+================================================================
+
+"valid palindrome, ignore non-alpha"    → two pointers + skip non-alphanumeric
+"are two strings anagrams"              → frequency array, increment/decrement
+"group equivalent strings"              → HashMap with sorted string as key
+"longest/shortest valid substring"      → sliding window (expand right, shrink left)
+"count/find palindrome substrings"      → expand around center (2n-1 centers)
+"find pattern occurrences in string"    → fixed sliding window + frequency match
+
+
+================================================================
+COMMON MISTAKES
+================================================================
+
+1. String comparison
+   s1 == s2        → compares references (wrong)
+   s1.equals(s2)   → compares content (correct)
+
+2. Modifying string directly
+   s.toUpperCase()      → s unchanged, result discarded
+   s = s.toUpperCase()  → must reassign
+
+3. Even palindrome expansion
+   WRONG: compare both sides against center character
+   RIGHT: compare left vs right, start with l=i, h=i+1
+
+4. Fixed window — forgetting to build first window before sliding
+
+5. O(1) space — creating cleaned string copy violates it
+   Use Character.isLetterOrDigit() with two pointers instead
+
+6. if(condition) return true; return false;
+   Just write: return condition;

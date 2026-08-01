@@ -1,0 +1,476 @@
+================================================================
+MODULE 11 — NETWORK SECURITY
+================================================================
+
+CIA TRIAD — FOUNDATION OF ALL SECURITY                           ★★★
+-------------------------------
+Every security decision maps back to three goals.
+
+CONFIDENTIALITY — only authorized people can read the data:
+  Threat:   attacker intercepts your bank login
+  Solution: encryption (HTTPS, TLS, AES), access control
+  Also:     permissions, need-to-know basis, key management
+
+INTEGRITY — data has not been tampered with:
+  Threat:   attacker modifies transaction "pay ₹100" → "pay ₹10,000"
+  Solution: hashing (SHA-256), digital signatures, HMAC
+  How:      hash sent alongside data. Receiver re-hashes, compares.
+            Tampered → hash mismatch → detected and rejected.
+
+AVAILABILITY — system accessible when legitimate users need it:
+  Threat:   DDoS floods server → crashes → users can't access
+  Solution: redundancy, load balancers, DDoS mitigation, CDN, backups
+
+All three must hold simultaneously:
+  C+I only (no A):  data private and untampered but server always down
+  C+A only (no I):  accessible but data silently modified
+  I+A only (no C):  system works but anyone can read your data
+
+
+AAA FRAMEWORK                                                    ★★★
+-------------
+AUTHENTICATION — who are you? Prove identity.
+  Something you know:  password, PIN
+  Something you have:  OTP, hardware token, phone
+  Something you are:   fingerprint, face ID
+  MFA = two or more factors combined.
+  Password alone weak (stolen/guessed). Password + OTP much stronger.
+
+AUTHORIZATION — what can you do? After identity confirmed.
+  Role-based:       admin, manager, viewer
+  Permission-based: read, write, delete
+  ACL:              Access Control List, specific rules per resource
+  Key distinction:  Authentication ≠ Authorization.
+    Authenticated as Rohan ≠ Rohan can access HR salary database.
+    Authorization decides what Rohan is allowed to access.
+
+ACCOUNTING — what did you do? Log all actions.
+  Records: who logged in, when, from where, which files, what commands
+  Why: detect breaches after the fact, compliance, forensics
+  "Who deleted that database?" → accounting answers this.
+
+
+COMMON NETWORK SECURITY THREATS                                  ★★★
+--------------------------------
+
+1. MAN-IN-THE-MIDDLE (MITM):
+  Attacker secretly positions between two parties.
+  Reads and modifies traffic without either side knowing.
+
+    Normal: You ←──────────────────→ Bank
+    MITM:   You ←──→ Attacker ←──→ Bank
+
+  How attacker gets in:
+    ARP Spoofing    → on LAN, redirect traffic through attacker
+    Evil Twin Wi-Fi → fake access point, you connect to attacker
+    DNS Spoofing    → redirect to attacker's server
+    BGP Hijacking   → redirect internet-level traffic
+
+  Prevention: HTTPS (certificate verification stops MITM),
+              VPN (encrypts before leaving device)
+
+
+2. DDoS — DISTRIBUTED DENIAL OF SERVICE:
+  Flood target with traffic from botnet (thousands of compromised machines).
+  Legitimate users: "connection timed out."
+
+  Three types:
+    Volumetric:   saturate bandwidth. 100Gbps of junk → pipe full.
+                  Example: UDP flood, DNS amplification.
+    Protocol:     exhaust server/firewall resources.
+                  SYN Flood: millions of SYNs, never complete handshake.
+                  Server keeps half-open connections → memory exhausted → crash.
+    Application:  target Layer 7. Looks like legitimate traffic.
+                  HTTP flood: millions of GET requests to heavy endpoint.
+                  Hard to distinguish from real users.
+
+  Prevention: rate limiting, CDN (absorbs volumetric), DDoS scrubbing
+              (Cloudflare, Akamai), SYN cookies (against SYN flood).
+
+
+3. DNS SPOOFING / CACHE POISONING:
+  Attacker injects fake DNS records into resolver's cache.
+    Resolver asks: "IP for bank.com?"
+    Attacker races real response → sends fake: "bank.com = attacker IP"
+    Resolver caches it. All users get attacker's IP until TTL expires.
+    Users enter credentials on fake site → stolen.
+
+  Prevention: DNSSEC (digital signatures on records),
+              HTTPS (cert mismatch alerts user even if DNS spoofed).
+
+
+4. ARP SPOOFING:
+  Attacker sends fake ARP replies on LAN to redirect traffic.
+    Normal: your ARP "who is gateway?" → router replies with real MAC.
+    Attack: attacker sends fake reply "gateway is at MY MAC"
+    Laptop updates ARP cache → all traffic goes to attacker → MITM.
+    Attacker forwards to real router → victim unaware.
+
+  Prevention: Dynamic ARP Inspection (DAI) on managed switches
+              (validates ARP against DHCP binding table).
+              Static ARP entries for critical devices.
+
+
+5. PACKET SNIFFING:
+  Capturing and reading network packets on a network.
+    Hub/Wi-Fi (shared medium): every packet goes to every device.
+    Attacker sets NIC to promiscuous mode → reads all traffic.
+    No encryption = reads passwords, messages, everything.
+    Switched network: harder (switch sends to correct port only).
+    But: ARP spoof first → MITM → then sniff.
+
+  Prevention: encryption (HTTPS, VPN — sniffed packets = gibberish).
+
+
+6. SQL INJECTION:
+  Malicious SQL injected via application input fields.
+    Normal query: SELECT * FROM users WHERE username='rohan' AND password='1234'
+    Attacker enters username: admin'--
+    Query becomes: SELECT * FROM users WHERE username='admin'--'...
+    -- comments out password check → logged in as admin without password.
+    Or: '; DROP TABLE users; -- → deletes entire table.
+
+  Prevention: parameterized queries (never concatenate user input into SQL),
+              input validation, ORM frameworks, WAF.
+
+
+7. PHISHING:
+  Fake emails or websites trick users into giving credentials.
+    Email: "Your SBI account is locked. Click here."
+    Link → sbi-secure-login.attacker.com (looks identical to real SBI)
+    User enters password → attacker steals it.
+
+  Prevention: user awareness training, MFA (stolen password alone useless),
+              email filters, SPF/DKIM/DMARC domain verification.
+
+
+FIREWALLS                                                        ★★★
+----------
+Security system that monitors and controls network traffic based on rules.
+Think: security guard at entrance — different types check different things.
+
+L3 — PACKET FILTER (STATELESS):
+  Checks per packet: src IP, dst IP, protocol, port.
+  No memory of previous packets. Each packet judged alone.
+
+  Rules (ACL example):
+    ALLOW TCP from any to 203.0.113.5:443
+    BLOCK TCP from 0.0.0.0/0 to any:22
+    ALLOW UDP from any to any:53
+
+  Fast. Simple. But dumb.
+  Cannot tell: is this SYN (new) or ACK (established)?
+  Cannot tell: does this response belong to a request we made?
+  Attacker can forge src IP → packet filter fooled.
+
+L4 — STATEFUL FIREWALL:
+  Tracks CONNECTION STATE. Maintains state table.
+
+  State table:
+    Src IP:Port          Dst IP:Port     State
+    192.168.1.5:54231    8.8.8.8:443    ESTABLISHED
+    192.168.1.6:54232    1.2.3.4:80     SYN_SENT
+
+  Outgoing allowed → return traffic automatically allowed (state match).
+  Unsolicited incoming → no state entry → BLOCKED.
+  Smarter than stateless. Handles return traffic automatically.
+
+L7 — APPLICATION FIREWALL / WAF:
+  Deep Packet Inspection — reads APPLICATION LAYER content.
+  Understands HTTP, DNS, FTP. Not just IP/ports.
+
+  WAF (Web Application Firewall):
+    Detects and blocks: SQL injection, XSS, known attack signatures,
+                        unusual patterns (too many requests, strange headers).
+    Request: GET /search?q='; DROP TABLE users;--
+    WAF: recognises SQL injection → BLOCKS → returns 403.
+    L3/L4 firewall: sees port 80, valid HTTP → ALLOWS (can't read content).
+
+  Can inspect HTTPS only if SSL terminated at WAF (WAF decrypts, inspects,
+  re-encrypts). Used by: Cloudflare, AWS WAF, nginx ModSecurity.
+
+COMPARISON:
+  Type          Checks                  Speed    Intelligence
+  ──────────────────────────────────────────────────────────────
+  L3 Stateless  IP, port, protocol      Fastest  Dumb (per packet)
+  L4 Stateful   + connection state      Fast     Medium (per flow)
+  L7/WAF        + app layer content     Slower   Smart (per request)
+
+
+IDS vs IPS
+-----------
+IDS — Intrusion Detection System:
+  Monitors traffic. Raises ALERTS. Does NOT block. PASSIVE.
+  Sits out of traffic path — receives copy of traffic.
+  Detects: known attack signatures, anomalies, policy violations.
+  Alert: "SQL injection from 1.2.3.4 at 14:32" → security team investigates.
+  Good: no false-positive blocking, zero impact on traffic flow.
+  Bad:  attack may succeed before team responds.
+
+IPS — Intrusion Prevention System:
+  Monitors traffic. Actively BLOCKS. INLINE (sits in traffic path).
+  Same detection as IDS but acts immediately:
+    Blocks packet, resets TCP connection, updates firewall rules.
+  Good: stops attacks in real time.
+  Bad:  false positives = legitimate traffic blocked.
+
+Traffic flow:
+  IDS: Traffic ──────────────────────────→ Destination
+                      ↓ copy
+                     IDS (monitors only)
+
+  IPS: Traffic ──→ [IPS] ──→ Destination  (inline, can block)
+
+When to choose:
+  IDS: you want visibility without risk of blocking legit traffic.
+  IPS: you want active protection, willing to tune false positives.
+  Most modern deployments: IPS (or combined IDPS).
+
+
+VPNs — VIRTUAL PRIVATE NETWORKS                                  ★★★
+-------------------------------
+CORE UNDERSTANDING:
+  VPN does NOT hide the existence of packets.
+  It creates an encrypted logical tunnel over the public internet
+  so data cannot be read or modified by outsiders.
+  Tunnel is VIRTUAL, not physical. Packets still travel through internet
+  but their contents are encrypted.
+
+  Without VPN: You → [public internet — sniffable] → Company server
+  With VPN:    You → [encrypted tunnel] → VPN endpoint → Company server
+               ISP sees: you connected to VPN, VPN's public IP, traffic volume.
+               ISP cannot see: packet contents, internal resources, apps used.
+
+
+COMMERCIAL VPN vs COMPANY VPN:
+
+  Commercial VPN (NordVPN, ProtonVPN):
+    Purpose: hide your public IP from websites, privacy, bypass geo-restriction.
+    Flow: You → VPN Server → Website
+    Website sees VPN server's IP, not yours.
+
+  Company VPN:
+    Purpose: securely connect remote users / branch offices to company network.
+    Flow: Laptop → VPN Gateway (public IP) → Office LAN
+    Goal is secure access, not anonymity.
+
+
+HTTPS vs VPN — KEY DIFFERENCE:
+  HTTPS: protects ONE application at a time (browser ↔ website only).
+  VPN:   protects ALL IP traffic regardless of application.
+         SSH, database, printer, SMB file sharing, DNS, remote desktop —
+         all protected. Applications need zero modification.
+         Encryption happens below them at network layer.
+
+WHY VPN IF HTTPS EXISTS:
+  Modern websites use HTTPS. But companies also run:
+    Databases, SSH, Active Directory, printers,
+    Windows file sharing (SMB), legacy applications.
+  Many are NOT web applications. Can't just redesign everything for HTTPS.
+  VPN makes remote devices behave AS IF inside office network.
+  All internal services accessible without exposing each one to internet.
+
+WHY NOT JUST PORT FORWARD EVERYTHING:
+  Technically possible. Exposes every internal service publicly.
+  Insecure (each service is an attack surface) + hard to manage.
+  VPN exposes only ONE secure entry point (VPN gateway). Everything else hidden.
+
+
+HOW VPN ACTUALLY WORKS — STEP BY STEP:
+  1. Laptop connects to VPN Gateway using company's PUBLIC IP.
+  2. User authenticates (password + MFA).
+  3. VPN creates encrypted tunnel between laptop and gateway.
+  4. Laptop receives VIRTUAL PRIVATE IP from company's address space.
+     (e.g. company uses 10.0.0.0/8, laptop gets 10.5.1.42)
+  5. All internal traffic routed through encrypted tunnel.
+  6. VPN gateway decrypts packets, forwards to internal devices.
+  Result: laptop behaves like another machine physically on office LAN.
+
+  Home Laptop
+        │
+  Internet (encrypted tunnel — outsiders see only VPN gateway IP)
+        │
+  Company Public IP (VPN Gateway) ← only exposed entry point
+        │
+  Decrypted inside here
+        │
+  Virtual Private IP assigned (10.x / 192.168.x)
+        │
+  Office LAN → printers, databases, SSH, file servers
+
+
+VPN vs VLAN:
+  VLAN: DIVIDES one physical LAN into multiple logical LANs.
+  VPN:  EXTENDS one private LAN across the public internet.
+  Memory trick: VLAN = divide. VPN = extend.
+
+
+IPSEC VPN — SITE TO SITE:
+  Works at Layer 3 (Network Layer). Encrypts IP packets.
+  Applications don't know IPSec exists — fully transparent.
+  Used for: permanently connecting two office networks.
+    Mumbai office ←── IPSec tunnel ──→ Delhi office
+
+  Two modes:
+    Transport mode: encrypts PAYLOAD only. Original IP header visible.
+                    Used for host-to-host communication.
+    Tunnel mode:    encrypts ENTIRE original IP packet + adds new outer IP header.
+                    Hides internal IPs from outside. Most common.
+                    Used for site-to-site VPNs.
+
+  Protocols:
+    AH  (Authentication Header):          integrity + auth, NO encryption
+    ESP (Encapsulating Security Payload):  encryption + integrity ← used mostly
+    IKE (Internet Key Exchange):          negotiates keys (UDP port 500)
+
+SSL/TLS VPN — REMOTE ACCESS:
+  Uses TLS (same technology as HTTPS). Runs on TCP port 443.
+  Almost never blocked by firewalls (443 = standard HTTPS port).
+  Software client only — no special hardware needed.
+  Used for: employees working from home connecting to company network.
+  Examples: OpenVPN, Cisco AnyConnect, WireGuard.
+
+IPSEC vs SSL VPN COMPARISON:
+  Feature          IPSec VPN              SSL/TLS VPN
+  ────────────────────────────────────────────────────────
+  Layer            Layer 3                Uses TLS over HTTPS
+  Access type      Full network access    Remote user access
+  Use case         Site-to-site offices   Remote employees
+  Traffic          All IP traffic         Secure TLS tunnel
+  Deployment       Hardware routers       Software client
+  Best for         Branch offices         Work-from-home
+
+
+ZERO TRUST ARCHITECTURE                                          ★★
+------------------------
+Old model (perimeter security):
+  Internet (untrusted) | Firewall | Internal network (TRUSTED)
+  Assumption: inside network = safe.
+  Problem: phishing/insider → attacker inside → free rein → moves laterally.
+
+Zero Trust: "Never trust, always verify — regardless of location."
+  Even inside network: every request authenticated.
+  Even own employees: least privilege (only what they need).
+  Even after login: continuous verification during session.
+
+Four principles:
+  1. Verify explicitly:    authenticate + authorize every single request.
+  2. Least privilege:      minimal access, just enough for the job.
+  3. Assume breach:        design as if attacker is already inside.
+  4. Micro-segmentation:   divide network into small zones.
+                           Breach in one zone doesn't spread to others.
+
+Example:
+  Old: developer inside office → accesses prod DB freely.
+  ZT:  developer must: MFA + role check + IP check + time check per resource.
+       Compromised laptop → attacker still can't reach prod DB.
+
+Used by: Google (BeyondCorp model), modern enterprises.
+
+
+SSL STRIPPING ATTACK                                             ★★
+--------------------
+Problem: attacker prevents HTTP → HTTPS upgrade.
+
+Normal flow:
+  You type: bank.com (HTTP)
+  Bank sends: 301 redirect → https://bank.com
+  Browser upgrades to HTTPS → secure.
+
+SSL Stripping:
+  You type: bank.com (HTTP) → attacker intercepts
+  Attacker connects to bank.com over HTTPS (attacker ↔ bank = encrypted)
+  Attacker strips HTTPS → serves you plain HTTP (you ↔ attacker = plain)
+  You see: http://bank.com — no padlock, no warning
+  You enter password → attacker reads in plain text.
+
+Prevention — HSTS (HTTP Strict Transport Security):
+  Server sends header: Strict-Transport-Security: max-age=31536000
+  Browser remembers: "this site MUST be HTTPS for 1 year."
+  Next visit: browser refuses to make HTTP request at all.
+  SSL stripping blocked — no initial HTTP request to intercept.
+
+  HSTS Preload: hardcoded into Chrome/Firefox/Safari.
+  Protection even on very first visit (before server can set header).
+
+
+CERTIFICATE PINNING                                              ★★
+-------------------
+Normal HTTPS: browser trusts ANY cert signed by ANY of ~100+ trusted CAs.
+Problem: compromised CA → valid fake cert for bank.com → MITM succeeds.
+
+Certificate Pinning:
+  App hardcodes: "only trust THIS specific cert (or public key hash)."
+  Any other cert — even CA-signed valid cert — REJECTED.
+
+  Attacker's valid cert → doesn't match pin → connection REFUSED.
+  Government-level MITM → blocked.
+
+Used in: banking apps, payment apps, high-security mobile apps.
+
+Problem — certificate renewal:
+  Server rotates cert → pin doesn't match → app breaks for all users.
+  Must update app BEFORE cert expires.
+  Solution: pin public key hash (more stable than cert itself),
+            or include backup pin for upcoming cert.
+
+
+★ PUBLIC WI-FI ATTACK SCENARIO
+--------------------------------
+You're on café Wi-Fi. Two attacks possible:
+
+Attack 1 — Packet Sniffing:
+  Wi-Fi is shared medium. All packets broadcast.
+  Attacker: NIC in promiscuous mode → captures all packets.
+  HTTP sites: reads your passwords in plain text.
+  HTTPS: encrypted → attacker sees gibberish → useless.
+  VPN: encrypts everything before Wi-Fi → total protection.
+
+Attack 2 — Evil Twin / MITM:
+  Attacker creates fake AP: "Cafe_WiFi_Free" (you connect to attacker).
+  ARP spoof on real network also achieves same position.
+  All your traffic → attacker → internet.
+  HTTPS: cert verification catches MITM (cert won't match domain) → warning.
+  VPN: tunnel encrypted before leaving device → attacker sees only VPN traffic.
+
+Combined protection: HTTPS + VPN covers both attacks completely.
+
+
+QUICK REFERENCE
+---------------
+CIA Triad          → Confidentiality + Integrity + Availability
+Confidentiality    → only authorized can read, encryption
+Integrity          → not tampered, hashing + signatures
+Availability       → accessible when needed, redundancy + DDoS protection
+AAA                → Authentication (who) → Authorization (what) → Accounting (log)
+MFA                → two+ factors, password alone not enough
+MITM               → attacker between two parties, reads/modifies traffic
+DDoS               → botnet flood, volumetric/protocol/application types
+SYN Flood          → half-open connections exhaust server memory
+DNS Spoofing       → fake records in resolver cache, DNSSEC prevents
+ARP Spoofing       → fake ARP replies on LAN, DAI prevents
+Packet Sniffing    → capture packets, encryption defeats it
+SQL Injection      → malicious SQL in input, parameterized queries prevent
+Phishing           → fake sites/emails, MFA defeats stolen passwords
+L3 Firewall        → stateless, checks IP/port, fast, dumb
+L4 Firewall        → stateful, tracks connection state, handles return traffic
+L7/WAF             → deep inspection, reads HTTP, blocks SQLi/XSS
+IDS                → monitors + alerts, passive, no blocking
+IPS                → monitors + blocks, inline, active
+VPN core           → encrypted tunnel, packets still travel internet, contents hidden
+Commercial VPN     → hides your IP from websites (NordVPN etc.)
+Company VPN        → extends office LAN to remote device, secure access
+VPN vs HTTPS       → HTTPS = one app only. VPN = all IP traffic, all apps
+Why VPN not ports  → one secure entry point vs exposing every service publicly
+Virtual private IP → remote device gets company IP, behaves like it's in office
+VLAN vs VPN        → VLAN divides a LAN. VPN extends a LAN.
+IPSec VPN          → site-to-site, Layer 3, tunnel/transport mode, transparent to apps
+IPSec tunnel mode  → encrypts entire packet + new IP header (hides internal IPs)
+IPSec transport    → encrypts payload only, original IP visible, host-to-host
+SSL/TLS VPN        → remote access, port 443, software client, work from home
+Zero Trust         → never trust always verify, least privilege, assume breach
+Micro-segmentation → small zones, breach in one doesn't spread
+SSL Stripping      → attacker downgrades HTTPS→HTTP, HSTS prevents
+HSTS               → browser remembers: always use HTTPS for this site
+Certificate Pinning→ app hardcodes expected cert, blocks even valid fake certs
+================================================================

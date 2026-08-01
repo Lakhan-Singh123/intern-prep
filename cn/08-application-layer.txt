@@ -1,0 +1,441 @@
+================================================================
+MODULE 8 — APPLICATION LAYER
+================================================================
+
+WHAT IS THE APPLICATION LAYER
+------------------------------
+Everything below (physical, data link, network, transport) = infrastructure.
+Getting bits from A to B reliably.
+
+Application layer = where actual SERVICES live.
+HTTP, DNS, email, file transfer — protocols humans/apps directly use.
+
+
+HTTP — HYPERTEXT TRANSFER PROTOCOL
+------------------------------------
+Request-response protocol for the web.
+Every website visit = browser and server having an HTTP conversation.
+
+KEY PROPERTY: HTTP is STATELESS.
+  Each request is completely independent.
+  Server remembers nothing between requests.
+  Simple and scalable but creates "how do I stay logged in?" problem.
+  → Cookies/Sessions/Tokens solve this.
+
+Example conversation:
+  Browser sends:
+    GET / HTTP/1.1
+    Host: google.com
+    User-Agent: Chrome/120
+
+  Google's server responds:
+    HTTP/1.1 200 OK
+    Content-Type: text/html
+    Content-Length: 15000
+
+    <html>...</html>
+
+
+HTTP REQUEST STRUCTURE
+-----------------------
+  METHOD /path HTTP/version          ← Request Line
+  Host: example.com                  ← Headers (metadata)
+  Content-Type: application/json
+  Authorization: Bearer token123
+                                     ← Blank line (separator)
+  { "name": "Rohan" }               ← Body (optional, for POST/PUT)
+
+
+HTTP METHODS                                                      ★★★
+------------
+Method    Purpose                 Body?  Idempotent?  Safe?
+──────────────────────────────────────────────────────────────────
+GET       Retrieve resource        No     Yes          Yes
+POST      Create new resource      Yes    No           No
+PUT       Replace entire resource  Yes    Yes          No
+PATCH     Update part of resource  Yes    No           No
+DELETE    Remove resource          No     Yes          No
+HEAD      Like GET but no body     No     Yes          Yes
+OPTIONS   What methods supported?  No     Yes          Yes
+
+Safe      = doesn't modify data (GET, HEAD, OPTIONS)
+Idempotent = same result calling multiple times as calling once
+  PUT:    update name="Rohan" 10 times → still name="Rohan" ✓
+  POST:   create user 10 times → 10 users created ✗
+  DELETE: delete user 10 times → deleted first time, 404 after → same end state ✓
+
+
+HTTP STATUS CODES                                                 ★★★
+-----------------
+1xx — Informational:  100 Continue
+
+2xx — Success:
+  200 OK              request succeeded
+  201 Created         resource created (POST success)
+  204 No Content      success but no body (DELETE success)
+
+3xx — Redirect:
+  301 Moved Permanently   resource moved forever, update bookmarks
+  302 Found               temporary redirect
+  304 Not Modified        use cached version (browser caching)
+
+4xx — Client Error (YOU made a mistake):
+  400 Bad Request         malformed request
+  401 Unauthorized        not authenticated (login first)
+  403 Forbidden           authenticated but no permission
+  404 Not Found           resource doesn't exist
+  405 Method Not Allowed  wrong HTTP method for this endpoint
+  429 Too Many Requests   rate limited
+
+5xx — Server Error (SERVER made a mistake):
+  500 Internal Server Error   something crashed on server
+  502 Bad Gateway             server got bad response from upstream
+  503 Service Unavailable     overloaded or down
+
+KEY DISTINCTION — 401 vs 403:
+  401: not logged in → authenticate first
+  403: logged in but don't have permission (different role/access level)
+
+
+HTTP VERSIONS — EVOLUTION                                         ★★★
+--------------------------
+
+HTTP/1.0 — One connection per request:
+  [TCP open] → request → response → [TCP close]
+  [TCP open] → request → response → [TCP close]
+  100 resources on page = 100 TCP handshakes = slow.
+
+HTTP/1.1 — Persistent connections + pipelining:
+  [TCP open once] → request → request → request → responses → keep alive
+  Better. But has APPLICATION-LEVEL HEAD-OF-LINE (HOL) BLOCKING:
+    Pipelining sends multiple requests without waiting.
+    BUT responses MUST come back IN ORDER.
+    html (2s) → css (10ms) → js (10ms)
+    css and js are ready instantly but wait behind slow html.
+    One slow response blocks everything behind it.
+
+HTTP/2 — Multiplexing (streams):
+  Multiple numbered STREAMS on ONE TCP connection.
+  No ordering enforced between streams.
+    Stream 1: GET /html ← takes 2s
+    Stream 2: GET /css  ← done 10ms → sent IMMEDIATELY
+    Stream 3: GET /js   ← done 10ms → sent IMMEDIATELY
+  Application-level HOL blocking = SOLVED.
+
+  Also added:
+    Header compression (HPACK) → repeated headers compressed
+    Binary framing             → binary not text, faster to parse
+    Server Push                → server sends CSS before browser asks
+
+  Still has TCP-LEVEL HOL BLOCKING:
+    If one TCP segment lost → ALL streams freeze and wait.
+    TCP enforces order at transport level across all streams.
+
+HTTP/3 — QUIC (UDP-based):
+  Runs over UDP, not TCP.
+  QUIC implements reliability PER STREAM independently.
+    Stream 2 loses a segment → only Stream 2 pauses.
+    Stream 1 and 3 keep flowing unaffected.
+  TCP HOL blocking = SOLVED.
+
+  Also:
+    TLS 1.3 built directly into QUIC handshake.
+    TCP+TLS = 2-3 RTT before first data byte.
+    QUIC = 1 RTT (or 0-RTT for returning users).
+  Used by: YouTube, Google, Facebook.
+
+VERSIONS SUMMARY:
+  HTTP/1.0  → new TCP per request, slow
+  HTTP/1.1  → persistent + pipelining, app-level HOL blocking
+  HTTP/2    → multiplexed streams, app HOL fixed, TCP HOL remains
+  HTTP/3    → QUIC/UDP, both HOL problems fixed, faster handshake
+
+
+HTTPS AND TLS                                                     ★★★
+--------------
+HTTPS = HTTP + TLS encryption.
+
+Without HTTPS: passwords, bank details travel in plain text.
+Anyone on network (public Wi-Fi, ISP, routers) can read everything.
+With HTTPS: everything encrypted. Interceptors see gibberish.
+
+TLS HANDSHAKE — STEP BY STEP:
+
+  CLIENT                                SERVER
+    │                                     │
+    │──── ClientHello ───────────────────→│
+    │     TLS versions supported          │
+    │     Cipher suites supported         │
+    │     Client Random (32 random bytes) │
+    │                                     │
+    │←─── ServerHello + Certificate ──────│
+    │     Chosen TLS version              │
+    │     Chosen cipher suite             │
+    │     Server Random (32 random bytes) │
+    │     Certificate (domain + pub key   │
+    │       + CA signature)               │
+    │     Server's DH public key          │
+    │                                     │
+    │     [CLIENT VERIFIES CERTIFICATE]   │
+    │       1. Signed by trusted CA?      │
+    │       2. Domain matches?            │
+    │       3. Not expired?               │
+    │       4. Not revoked?               │
+    │     All pass → server is genuine    │
+    │                                     │
+    │──── Client DH public key ──────────→│
+    │                                     │
+    │     [BOTH DERIVE SAME SESSION KEY]  │
+    │     pre-master = DH(my priv,        │
+    │                     their pub)      │
+    │     session key = mix(pre-master    │
+    │       + client random               │
+    │       + server random)              │
+    │     Never sent over wire.           │
+    │                                     │
+    │──── Finished (encrypted) ──────────→│
+    │←─── Finished (encrypted) ───────────│
+    │                                     │
+    │═════ Encrypted HTTP data ═══════════│
+
+Two randoms in session key = unique key per session even
+if same pre-master secret is somehow reused.
+
+
+ASYMMETRIC vs SYMMETRIC ENCRYPTION                               ★★★
+----------------------------------
+ASYMMETRIC (RSA, ECDHE):
+  Two keys: Public key (share freely) + Private key (never leaves server).
+
+  Encrypting:
+    Encrypt with public key → only private key can decrypt.
+    Spy intercepts ciphertext → can't decrypt → safe.
+
+  Signing:
+    Sign with private key → anyone with public key can verify.
+    Proves message came from owner of private key, wasn't tampered.
+
+  Problem: mathematically expensive. Too slow for bulk data.
+
+SYMMETRIC (AES):
+  One shared key. Both sides encrypt/decrypt with same key.
+  Thousands of times faster than asymmetric.
+  Problem: how do you share the key without spy intercepting it?
+
+TLS SOLUTION — use both:
+  Asymmetric (ECDHE) for key exchange only → share session key safely.
+  Symmetric (AES-256) for all actual data → fast bulk encryption.
+
+Phase            Algorithm         Why
+─────────────────────────────────────────────────────────────────
+Key exchange     ECDHE (asymm)     Share secret without sending it
+Authentication   RSA signature     Certificate proves server identity
+Bulk encryption  AES-256 (symm)    Fast encryption of all HTTP data
+Integrity        HMAC-SHA256       Detect any tampering with data
+
+
+CERTIFICATE AND TRUST CHAIN
+-----------------------------
+Google has: public key + private key pair.
+Google asks DigiCert (Certificate Authority): "certify my public key".
+DigiCert verifies Google owns google.com → signs it.
+
+Certificate = {
+  domain: "google.com",
+  Google's public key,
+  DigiCert's signature (signed with DigiCert's private key)
+}
+
+Browser has DigiCert's public key pre-installed (all browsers/OS do).
+Browser: VERIFY(signature, DigiCert's public key) → TRUE
+Conclusion: DigiCert confirmed this is Google's genuine public key.
+
+Attack scenario — attacker swaps public key:
+  Fake cert: { domain: "google.com", attacker's key, ??? }
+  Attacker can't produce DigiCert's signature (no DigiCert private key).
+  Browser: verify fails → RED WARNING → connection blocked.
+
+FORWARD SECRECY (ECDHE = Ephemeral):
+  Fresh DH key pair generated for every session.
+  Session key never stored anywhere.
+  Server's private key stolen later → past sessions CANNOT be decrypted.
+  Old sessions are safe because their keys were never persisted.
+
+
+DIFFIE-HELLMAN — HOW BOTH SIDES GET SAME KEY WITHOUT SENDING IT
+-----------------------------------------------------------------
+Public values g and p known to everyone.
+
+  Alice picks secret a → computes A = g^a mod p → sends A
+  Bob picks secret b   → computes B = g^b mod p → sends B
+
+  Alice: B^a mod p = shared secret
+  Bob:   A^b mod p = same shared secret ← mathematically identical
+
+  Spy sees A, B, g, p. Cannot compute secret without solving
+  discrete logarithm problem (computationally infeasible).
+
+TLS uses ECDHE (Elliptic Curve version) — much stronger math.
+
+
+COOKIES, SESSIONS, TOKENS                                        ★★★
+--------------------------
+HTTP stateless problem: you stay logged in across pages. How?
+
+COOKIES:
+  Small key-value pairs stored in browser.
+  Sent automatically with every request to that domain.
+
+  Login → server: Set-Cookie: session_id=abc123; HttpOnly; Secure; SameSite=Strict
+  Every request: Cookie: session_id=abc123
+  Server sees cookie → knows who you are.
+
+  Flags:
+    HttpOnly    → JS can't read (prevents XSS theft)
+    Secure      → only sent over HTTPS
+    SameSite    → prevents CSRF attacks
+
+SESSIONS (server-side):
+  Server stores: { "abc123": { userId: 42, name: "Rohan", role: "admin" } }
+  Cookie has only the session ID (abc123).
+  Server looks up full data from store on each request.
+  Problem: multiple servers all need access to shared session store (Redis/DB).
+
+JWT TOKENS (stateless):
+  Token = Header.Payload.Signature (base64 encoded, 3 parts separated by .)
+
+  Header:  { "alg": "HS256", "typ": "JWT" }
+  Payload: { "userId": 42, "name": "Rohan", "exp": 1234567890 }
+  Signature: HMAC(header + payload, secret_key)
+
+  Client stores token → sends: Authorization: Bearer <token>
+  Server: verify signature → if valid, trust payload → NO DB lookup needed.
+  Stateless: any server can verify. No shared store needed.
+
+COMPARISON:
+  Feature       Cookies           Sessions           JWT
+  ──────────────────────────────────────────────────────────
+  Storage       Browser           Server (Redis/DB)  Client
+  Stateful?     Yes               Yes                No
+  Scalability   Medium            Needs shared store Excellent
+  Revocation    Delete cookie     Delete from store  Hard (need blacklist)
+  Data in token Yes (encrypted)   No (just ID)       Yes (readable)
+  Best for      Auth identifier   Traditional apps   APIs, microservices
+
+
+REST APIs                                                        ★★★
+---------
+REST = Representational State Transfer.
+Principles for designing APIs over HTTP.
+
+6 principles:
+  1. Stateless       → each request has all info needed
+  2. Client-Server   → clear separation
+  3. Uniform Interface → consistent URLs and methods
+  4. Cacheable       → responses can be cached
+  5. Layered System  → client doesn't know about load balancers etc.
+  6. Code on Demand  → optional (server can send executable code)
+
+REST in practice:
+  URL identifies RESOURCE. Method identifies ACTION.
+
+  GET    /users        → get all users
+  GET    /users/42     → get user 42
+  POST   /users        → create new user
+  PUT    /users/42     → replace user 42 completely
+  PATCH  /users/42     → update part of user 42
+  DELETE /users/42     → delete user 42
+
+
+WEBSOCKETS                                                       ★★★
+-----------
+Problem: HTTP is request-response. Server can't push data unprompted.
+Use case: chat apps, live scores, notifications, gaming.
+
+HTTP Polling (bad): browser asks every second "any new messages?" → wasteful.
+Long Polling (better): server holds connection open until data arrives → hacky.
+WebSockets (best): full-duplex persistent connection.
+
+WebSocket Handshake (starts as HTTP):
+  Client:
+    GET /chat HTTP/1.1
+    Upgrade: websocket
+    Connection: Upgrade
+    Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+
+  Server:
+    HTTP/1.1 101 Switching Protocols
+    Upgrade: websocket
+
+  Now: not HTTP anymore. Both sides can send frames anytime.
+
+HTTP:      Client → Server → Client → Server (client always initiates)
+WebSocket: Client ←─────────────────→ Server (either side, anytime)
+
+Use cases: WhatsApp Web, live sports scores, stock tickers,
+           collaborative editing (Figma), online gaming.
+
+
+FTP — FILE TRANSFER PROTOCOL
+------------------------------
+Transfers files between client and server.
+Uses TWO TCP connections:
+  Port 21: Control connection (commands: login, list files, cd)
+  Port 20: Data connection (actual file bytes)
+
+Active mode:  server initiates data connection back to client (firewalls block)
+Passive mode: client initiates both connections (firewall-friendly, standard)
+
+Replaced mostly by: SFTP (SSH-based, encrypted), HTTPS downloads.
+
+
+EMAIL PROTOCOLS
+---------------
+SMTP (Simple Mail Transfer Protocol) — port 25/587:
+  SENDING email. Client → mail server, server → server.
+
+IMAP (Internet Message Access Protocol) — port 143/993:
+  READING email. Email stays on server. Sync across all devices.
+  Delete on phone → deleted everywhere. Standard today.
+
+POP3 (Post Office Protocol) — port 110/995:
+  READING email. Downloads to local device, removed from server.
+  No sync across devices. Legacy, mostly replaced by IMAP.
+
+
+QUICK REFERENCE
+---------------
+HTTP               → stateless request-response protocol
+Stateless          → server remembers nothing between requests
+GET/POST/PUT/PATCH/DELETE → read/create/replace/update/delete
+Safe               → no data modification (GET, HEAD, OPTIONS)
+Idempotent         → same result calling multiple times (GET, PUT, DELETE)
+200/201/204        → OK / Created / No Content
+301/302/304        → Permanent redirect / Temp redirect / Use cache
+401 vs 403         → not authenticated vs no permission
+404/500            → not found / server error
+HTTP/1.0           → new TCP per request, slow
+HTTP/1.1           → persistent connections, app HOL blocking
+HTTP/2             → multiplexed streams, app HOL fixed, TCP HOL remains
+HTTP/3             → QUIC/UDP, all HOL fixed, faster handshake
+App HOL blocking   → HTTP/1.1: responses must return in order → fast blocked by slow
+TCP HOL blocking   → HTTP/2: lost TCP segment stalls ALL streams on connection
+QUIC               → UDP + per-stream reliability, each stream independent
+HTTPS              → HTTP + TLS encryption
+TLS handshake      → ClientHello→ServerHello+Cert→Key Exchange→Session Key→Encrypted
+Asymmetric         → slow, key exchange + identity (ECDHE, RSA)
+Symmetric          → fast, bulk data (AES-256)
+Session key        → mix(pre-master + client random + server random), unique per session
+Forward secrecy    → fresh DH key per session, past sessions safe if key stolen later
+Certificate        → domain + public key + CA signature
+CA trust           → browser has CA's pub key pre-installed, verifies signature
+Cookie             → browser-stored, auto-sent, HttpOnly/Secure flags
+Session            → server-side state, cookie holds only session ID
+JWT                → stateless, signature verified, no DB lookup needed
+REST               → stateless, URL=resource, method=action
+WebSocket          → full-duplex persistent, server can push, starts as HTTP upgrade
+SMTP               → sending email (port 25/587)
+IMAP               → reading email, stays on server, syncs devices (port 143/993)
+POP3               → reading email, downloads locally, no sync (port 110/995)
+FTP                → port 21 (control) + port 20 (data), two connections
+================================================================

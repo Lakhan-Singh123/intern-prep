@@ -1,0 +1,289 @@
+================================================================
+BACKTRACKING — Interview Prep Notes
+================================================================
+
+REVISION FLAGS:
+  🔴 HIGH PRIORITY — re-implement from scratch without help:
+      LC 46  — Permutations (used[] array, no start index)
+      LC 47  — Permutations II (!used[i-1] duplicate condition)
+      LC 79  — Word Search (mark → recurse → restore pattern)
+      LC 131 — Palindrome Partitioning (partition recursion, cut points)
+
+  🟡 MEDIUM PRIORITY — re-code template once from memory:
+      LC 90  — Subsets II (i > index duplicate skip)
+      LC 40  — Combination Sum II (sort + skip + i+1)
+
+  🟢 QUICK REVISION — just re-read and trace:
+      LC 78  — Subsets
+      LC 39  — Combination Sum
+      LC 17  — Letter Combinations
+
+  📖 DISCUSSED NOT SOLVED:
+      LC 132 — Palindrome Partitioning II (this is DP not backtracking —
+               minimum cuts via DP transition from LC 131's partition idea)
+
+KEY WEAKNESS TO FIX: implementation speed, not understanding.
+Fix: rewrite the 🔴 templates from memory 2-3 times. Don't re-read — recode.
+
+================================================================
+
+CORE IDEA
+---------
+Backtracking = DFS on a decision tree.
+At each step: make a choice → explore deeper → undo the choice → try next option.
+
+Think of it as maze solving: go forward, hit dead end, come back, try next path.
+
+THE UNIVERSAL TEMPLATE
+-----------------------
+void backtrack(current state, choices) {
+    // 1. BASE CASE — complete solution found
+    if (isComplete()) {
+        result.add(new ArrayList<>(current));  // ALWAYS add a copy, not reference
+        return;
+    }
+
+    for (choice : choices) {
+        if (isInvalid(choice)) continue;   // PRUNE early
+
+        current.add(choice);               // CHOOSE
+        markUsed(choice);
+
+        backtrack(updated state);          // EXPLORE
+
+        current.remove(last);              // UNCHOOSE (backtrack)
+        unmarkUsed(choice);
+    }
+}
+
+TWO CRITICAL RULES:
+1. Always add a COPY to result: new ArrayList<>(current)
+   Not the reference — current changes throughout recursion
+2. Always UNDO in step 6 — forgetting this poisons future branches
+
+
+================================================================
+5 CORE PATTERNS
+================================================================
+
+PATTERN 1: SUBSETS (pick or skip, order doesn't matter)
+---------------------------------------------------------
+Pass `start` index — only look at elements from start onwards (prevents reuse/reorder)
+
+LC 78 — Subsets
+    void backtrack(int[] nums, int start, List<Integer> curr) {
+        result.add(new ArrayList<>(curr));     // every state is valid subset
+        for (int i = start; i < nums.length; i++) {
+            curr.add(nums[i]);
+            backtrack(nums, i+1, curr);        // i+1: no reuse
+            curr.remove(curr.size()-1);
+        }
+    }
+
+LC 90 — Subsets II (with duplicates)
+    Arrays.sort(nums);                         // sort first — groups duplicates
+    // inside loop:
+    if (i > start && nums[i] == nums[i-1]) continue;  // skip dup at same level
+    // i > start means: only skip at same recursion level, not deeper levels
+
+
+PATTERN 2: PERMUTATIONS (order matters, use all elements)
+-----------------------------------------------------------
+No `start` index — always iterate from 0.
+Use boolean used[] to track which elements are in current path.
+
+LC 46 — Permutations
+    boolean[] used = new boolean[n];
+    void backtrack(int[] nums, List<Integer> curr) {
+        if (curr.size() == nums.length) { result.add(new ArrayList<>(curr)); return; }
+        for (int i = 0; i < nums.length; i++) {
+            if (used[i]) continue;
+            curr.add(nums[i]); used[i] = true;
+            backtrack(nums, curr);
+            curr.remove(curr.size()-1); used[i] = false;
+        }
+    }
+
+LC 47 — Permutations II (with duplicates)
+    Arrays.sort(nums);
+    // skip if: same value as previous AND previous was NOT used in this path
+    if (i > 0 && nums[i] == nums[i-1] && !used[i-1]) continue;
+
+
+PATTERN 3: COMBINATIONS (find subsets summing to target)
+----------------------------------------------------------
+LC 39 — Combination Sum (reuse allowed)
+    Arrays.sort(candidates);
+    void backtrack(int[] cands, int target, int start, List<Integer> curr) {
+        if (target == 0) { result.add(new ArrayList<>(curr)); return; }
+        for (int i = start; i < cands.length; i++) {
+            if (cands[i] > target) break;       // pruning (sorted)
+            curr.add(cands[i]);
+            backtrack(cands, target-cands[i], i, curr);   // i: reuse allowed
+            curr.remove(curr.size()-1);
+        }
+    }
+
+LC 40 — Combination Sum II (no reuse, duplicates in input)
+    Arrays.sort(candidates);
+    if (i > start && candidates[i] == candidates[i-1]) continue;  // skip dup
+    backtrack(..., i+1, curr);    // i+1: no reuse
+
+
+PATTERN 4: GRID SEARCH
+------------------------
+LC 79 — Word Search
+Mark cell as '#' during exploration, restore on backtrack.
+Check boundary + visited + character match BEFORE recursing.
+
+    boolean backtrack(char[][] board, String word, int idx, int row, int col) {
+        if (idx == word.length()) return true;
+        if (row<0||row>=m||col<0||col>=n||board[row][col]!=word.charAt(idx)) return false;
+
+        char temp = board[row][col];
+        board[row][col] = '#';             // mark visited in-place
+
+        boolean found = backtrack(board,word,idx+1,row+1,col)
+                     || backtrack(board,word,idx+1,row-1,col)
+                     || backtrack(board,word,idx+1,row,col+1)
+                     || backtrack(board,word,idx+1,row,col-1);
+
+        board[row][col] = temp;            // restore (backtrack)
+        return found;
+    }
+
+N-Queens (LC 51) — already solved:
+    Track: cols[], diag1[] (row-col), diag2[] (row+col) for O(1) attack check
+    Place queen row by row, try each column
+
+Sudoku (LC 37) — already solved:
+    Try digits 1-9 in each empty cell, validate row/col/box, backtrack on fail
+
+
+PATTERN 5: PARTITION / SPLIT
+------------------------------
+LC 131 — Palindrome Partitioning
+At each start index, try every possible end. If substring is palindrome → recurse.
+
+    void backtrack(String s, int start, List<String> curr) {
+        if (start == s.length()) { result.add(new ArrayList<>(curr)); return; }
+        for (int end = start+1; end <= s.length(); end++) {
+            String sub = s.substring(start, end);
+            if (isPalindrome(sub)) {
+                curr.add(sub);
+                backtrack(s, end, curr);
+                curr.remove(curr.size()-1);
+            }
+        }
+    }
+
+
+================================================================
+THE KEY DIFFERENCES — SUBSETS vs PERMUTATIONS vs COMBINATIONS
+================================================================
+
+Problem             | Order? | Reuse? | Use start? | Use used[]?
+--------------------|--------|--------|------------|------------
+Subsets             | No     | No     | Yes (i+1)  | No
+Permutations        | Yes    | No     | No         | Yes
+Combination Sum     | No     | Yes    | Yes (i)    | No
+Combination Sum II  | No     | No     | Yes (i+1)  | No
+
+DUPLICATE HANDLING (when input has duplicates):
+  Sort first → then skip: if (i > start && nums[i] == nums[i-1]) continue
+  For permutations: if (i>0 && nums[i]==nums[i-1] && !used[i-1]) continue
+
+
+================================================================
+PRUNING — WHAT SEPARATES FAST FROM TLE
+================================================================
+
+Always prune as early as possible inside the for loop:
+  - Sum exceeds target: if (candidates[i] > target) break  (sorted array)
+  - Duplicate at same level: if (i > start && nums[i] == nums[i-1]) continue
+  - Already used: if (used[i]) continue
+  - Grid: check bounds + visited + char match before recursing
+
+
+================================================================
+PROBLEMS COVERED (11 total)
+================================================================
+
+MEDIUM
+------
+LC 78  — Subsets              → pick/skip, start index
+LC 90  — Subsets II           → sort + skip dup at same level
+LC 46  — Permutations         → used[] array, no start index
+LC 47  — Permutations II      → sort + !used[i-1] condition
+LC 39  — Combination Sum      → reuse allowed, pass i not i+1
+LC 40  — Combination Sum II   → sort + skip dup + i+1
+LC 17  — Letter Combinations  → choices = mapped letters, same template
+LC 79  — Word Search          → in-place marking with '#', restore after
+LC 131 — Palindrome Partition → try every cut, recurse if palindrome
+
+HARD (done independently before this session)
+-----
+LC 51  — N-Queens    → place row-by-row, track cols+diags for attack check
+LC 37  — Sudoku      → try 1-9 in empty cells, validate, backtrack on fail
+
+
+================================================================
+COMMON INTERVIEW TRAPS
+================================================================
+
+1. Adding reference not copy      → result.add(new ArrayList<>(current))
+2. Forgetting to undo             → always unchoose after recursive call
+3. Wrong start index              → subsets=i+1, combSum=i (reuse), perms=0
+4. Dedup without sorting          → sort first, then skip duplicates
+5. Permutations II condition      → !used[i-1] not used[i-1]
+6. Word Search: not restoring '#' → must restore board[row][col] = temp
+7. Pruning too late               → prune at top of loop, not inside recursion
+
+
+================================================================
+★ MASTER SIGNAL TABLE — PATTERN RECOGNITION
+================================================================
+
+When you see this in a problem...              → Think this pattern
+
+"find ALL subsets of an array"                 → Pick/skip backtracking (start index)
+"find ALL combinations summing to target"      → Combination sum backtracking
+"find ALL permutations of array"               → Permutations with used[] array
+"find word in a grid (up/down/left/right)"     → Grid DFS + mark '#' + restore
+"partition string so all parts are palindromes"→ Partition backtracking (cut points)
+"N-Queens / place pieces with constraints"     → Constraint-based backtracking
+"solve Sudoku / fill grid with rules"          → Constraint-based backtracking
+"generate all valid parentheses"               → Backtracking with open/close count
+"letter combinations of phone digits"          → Backtracking through mapped choices
+
+★ DISGUISED BACKTRACKING SIGNALS (story hides the decision tree):
+  "generate all valid X"                       → backtracking (X = parentheses, IPs, etc.)
+  "enumerate all possibilities / configurations" → backtracking
+  "find any ONE solution to a constraint puzzle" → backtracking + prune early
+  "all ways to split / partition X"            → partition backtracking
+
+★ BACKTRACKING vs DP — ask this first:
+  "How many ways?"    → DP (count, don't enumerate)
+  "List ALL ways?"    → Backtracking (enumerate each one)
+  "Is it possible?"   → BFS/DP (existence, not listing)
+
+★ START INDEX vs USED[] — decide before coding:
+  Order doesn't matter (subsets/combinations) → use start index
+  Order matters (permutations)                → use used[] array, start from 0
+
+★ DUPLICATE INPUT SIGNALS:
+  "array has duplicates, find unique subsets"  → sort first + skip same-value at same level
+  "array has duplicates, find unique perms"    → sort first + skip if !used[i-1]
+
+================================================================
+INTERVIEW TIPS
+================================================================
+
+- Always draw first 2 levels of decision tree before coding (2 min saves 20)
+- State the template out loud: "choose, explore, unchoose"
+- If duplicates in input: say "I'll sort first and skip duplicates at the same level"
+- Time complexity = O(branches ^ depth) × work per node
+  Subsets: O(2^n × n), Permutations: O(n! × n), Combination Sum: O(2^(t/m) × n)
+- Backtracking = guaranteed to find all solutions, but exponential time
+
+================================================================

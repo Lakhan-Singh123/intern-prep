@@ -1,0 +1,292 @@
+Two Pointers — DSA Intern Prep
+================================
+
+
+FOUR FORMS OF TWO POINTERS
+----------------------------
+1. Opposite Ends     — left=0, right=end, move toward each other
+2. Same Direction    — slow and fast pointer, both start at 0
+3. Two Arrays        — one pointer in each array (merge style)
+4. Partition         — maintain sorted zones (Dutch National Flag)
+
+
+WHEN TO USE
+-----------
+- Sorted array + find pair/triplet with target sum
+- Remove duplicates / move elements in place
+- Check palindrome conditions
+- Maximize/minimize something between two indices
+- Any "two elements that satisfy a condition" problem
+
+
+================================================================
+PROBLEMS COVERED
+================================================================
+
+
+1. 3SUM — LeetCode #15
+-----------------------
+Problem: Find all unique triplets that sum to zero.
+
+Pattern: Sort + fix one element + two pointers for remaining pair.
+
+  public List<List<Integer>> threeSum(int[] nums) {
+      Arrays.sort(nums);
+      List<List<Integer>> result = new ArrayList<>();
+      for (int i = 0; i < nums.length - 2; i++) {
+          if (i > 0 && nums[i] == nums[i-1]) continue;  // skip duplicate fixed element
+          int left = i + 1, right = nums.length - 1;
+          while (left < right) {
+              int sum = nums[i] + nums[left] + nums[right];
+              if (sum == 0) {
+                  result.add(Arrays.asList(nums[i], nums[left], nums[right]));
+                  while (left < right && nums[left] == nums[left+1]) left++;
+                  while (left < right && nums[right] == nums[right-1]) right--;
+                  left++; right--;
+              } else if (sum < 0) left++;
+              else right--;
+          }
+      }
+      return result;
+  }
+
+Why sort first:
+  Sorting lets two pointers work — move left when sum too small, right when too big.
+  Also groups duplicates together so skipping them is easy.
+
+Duplicate skipping:
+  Fixed element:    if (i > 0 && nums[i] == nums[i-1]) continue
+  After valid pair: skip while nums[left]==nums[left+1], nums[right]==nums[right-1]
+                    THEN do left++, right-- to land on fresh values
+
+Early termination optimization:
+  if (nums[i] > 0) break;  // sorted array, all remaining elements positive, sum can't be 0
+
+Complexity: Time O(n²)  Space O(1)
+
+
+2. CONTAINER WITH MOST WATER — LeetCode #11
+---------------------------------------------
+Problem: Find two lines that form container with maximum water.
+
+Pattern: Opposite ends. Always move the SHORTER pointer inward.
+
+  public int maxArea(int[] height) {
+      int left = 0, right = height.length - 1;
+      int maxWater = 0;
+      while (left < right) {
+          int water = Math.min(height[left], height[right]) * (right - left);
+          maxWater = Math.max(maxWater, water);
+          if (height[left] < height[right]) left++;
+          else right--;
+      }
+      return maxWater;
+  }
+
+Why move shorter pointer:
+  Area = min(left, right) * width. Width decreases by 1 each step.
+  Moving taller pointer can only maintain or decrease the min height → never better.
+  Moving shorter pointer might find a taller one → only chance to improve.
+
+Complexity: Time O(n)  Space O(1)
+
+
+3. TWO SUM II — LeetCode #167
+-------------------------------
+Problem: Sorted array, find two numbers that sum to target. Return 1-indexed.
+
+Pattern: Classic opposite ends — sorted array guarantees correctness.
+
+  public int[] twoSum(int[] numbers, int target) {
+      int left = 0, right = numbers.length - 1;
+      while (left < right) {
+          int sum = numbers[left] + numbers[right];
+          if (sum == target) return new int[]{left+1, right+1};
+          else if (sum > target) right--;
+          else left++;
+      }
+      return null;
+  }
+
+Why it works: array is sorted. If sum too big, right must decrease. If too small, left must increase.
+
+Complexity: Time O(n)  Space O(1)
+
+
+4. TRAPPING RAIN WATER — LeetCode #42
+---------------------------------------
+Problem: Given heights, find total water trapped.
+
+Key insight: Water at index i = min(maxLeft, maxRight) - height[i]
+             Process from the side with SMALLER max — that side is the bottleneck.
+
+Two pointer O(1) space solution:
+  public int trap(int[] height) {
+      int left = 0, right = height.length - 1;
+      int maxLeft = 0, maxRight = 0, water = 0;
+      while (left < right) {
+          if (height[left] < height[right]) {
+              if (height[left] >= maxLeft) maxLeft = height[left];
+              else water += maxLeft - height[left];
+              left++;
+          } else {
+              if (height[right] >= maxRight) maxRight = height[right];
+              else water += maxRight - height[right];
+              right--;
+          }
+      }
+      return water;
+  }
+
+Why process smaller side:
+  If height[left] < height[right], we know maxRight >= height[right] > height[left].
+  So min(maxLeft, maxRight) = maxLeft → water = maxLeft - height[left] (exact).
+
+Prefix array approach (O(n) space — easier to understand):
+  Build maxLeft[] and maxRight[] arrays first.
+  water += Math.min(maxLeft[i], maxRight[i]) - height[i]
+
+Complexity: Time O(n)  Space O(1) two-pointer / O(n) prefix array
+
+
+5. REMOVE DUPLICATES FROM SORTED ARRAY — LeetCode #26
+-------------------------------------------------------
+Problem: Remove duplicates in-place, return count of unique elements.
+
+Pattern: Same direction — slow pointer tracks placement, fast pointer scans.
+
+  public int removeDuplicates(int[] nums) {
+      int k = 1;  // position for next unique element
+      for (int i = 1; i < nums.length; i++) {
+          if (nums[i] != nums[k-1]) {
+              nums[k] = nums[i];
+              k++;
+          }
+      }
+      return k;
+  }
+
+k = where to place the next unique element.
+If current differs from last placed (nums[k-1]), place it at k and advance k.
+
+Complexity: Time O(n)  Space O(1)
+
+
+6. MOVE ZEROES — LeetCode #283
+--------------------------------
+Problem: Move all zeros to end in-place, maintain relative order of non-zeros.
+
+Pattern: Same direction — slow pointer tracks where next non-zero goes.
+
+  public void moveZeroes(int[] nums) {
+      int k = 0;  // position for next non-zero element
+      for (int i = 0; i < nums.length; i++) {
+          if (nums[i] != 0) {
+              nums[k] = nums[i];
+              if (k != i) nums[i] = 0;  // avoid self-overwrite
+              k++;
+          }
+      }
+  }
+
+k tracks where next non-zero should go.
+When non-zero found: place at k, zero out original position, advance k.
+
+Complexity: Time O(n)  Space O(1)
+
+
+7. VALID PALINDROME II — LeetCode #680
+----------------------------------------
+Problem: Can you make string palindrome by deleting at most one character?
+
+Pattern: Two pointers. On first mismatch, try BOTH options — skip left OR skip right.
+         Whichever remaining string is fully palindrome → return true.
+
+  public boolean validPalindrome(String s) {
+      int left = 0, right = s.length() - 1;
+      while (left < right) {
+          if (s.charAt(left) != s.charAt(right)) {
+              return isPalin(s, left+1, right) || isPalin(s, left, right-1);
+          }
+          left++; right--;
+      }
+      return true;
+  }
+
+  private boolean isPalin(String s, int l, int r) {
+      while (l < r) {
+          if (s.charAt(l) != s.charAt(r)) return false;
+          l++; r--;
+      }
+      return true;
+  }
+
+CRITICAL MISTAKE to avoid:
+  When mismatch occurs, do NOT just peek one step ahead to decide which to skip.
+  Peeking one step is insufficient — need to verify ENTIRE remaining string.
+
+  WRONG: if (s.charAt(l) == s.charAt(r-1)) → skip r and peek one step
+  RIGHT: try isPalin(skip left) || isPalin(skip right) → full check both options
+
+Why peeking fails — "abaxab":
+  Mismatch at l=0('a'), r=5('b'). Peek: s[0]=='a'==s[4]='a' → skip right.
+  After skip: l=1, r=3. Mismatch: 'b'!='x', peek gives nothing → stuck.
+  But correct answer: delete s[0]='a' → "baxab" is palindrome. Should return true.
+
+Complexity: Time O(n)  Space O(1)
+
+
+================================================================
+SAME DIRECTION PATTERN — KEY INSIGHT
+================================================================
+
+Both #26 and #283 use the same template:
+  slow pointer (k) = tracks WHERE to place the next valid element
+  fast pointer (i) = scans for valid elements
+
+  int k = 0;  // or 1 depending on problem
+  for (int i = 0; i < nums.length; i++) {
+      if (nums[i] is valid) {
+          nums[k] = nums[i];
+          k++;
+      }
+  }
+
+For #26: valid = nums[i] != nums[k-1]  (not a duplicate)
+For #283: valid = nums[i] != 0          (not a zero)
+
+
+================================================================
+PATTERNS SUMMARY
+================================================================
+
+Find pair summing to target (sorted)      →  opposite ends
+Find triplets/quadruplets summing to 0    →  sort + fix + opposite ends
+Maximize area/water between two pointers  →  opposite ends, move smaller
+Remove in-place / reorder elements        →  same direction slow/fast
+Palindrome with one allowed skip          →  try both options on mismatch
+Trapped water                             →  opposite ends, process smaller max side
+
+
+================================================================
+COMMON MISTAKES
+================================================================
+
+1. 3Sum duplicate skipping
+   Skip BEFORE advancing (while loop), then advance (l++, r--)
+   If you skip after advancing you miss the new position
+
+2. Container water — moving taller pointer
+   WRONG: move taller (can never improve)
+   RIGHT: always move shorter (only way area can increase)
+
+3. Valid Palindrome II — peeking instead of full check
+   One step peek is wrong when peek matches but further chars don't
+   Always use helper isPalin() to check entire remaining string
+
+4. Remove duplicates — checking nums[i] vs nums[i-1] instead of nums[k-1]
+   Compare against last PLACED element (nums[k-1]), not last SCANNED element
+
+5. Integer overflow in sum comparisons
+   nums[l] + nums[r] can overflow for large values
+   Safe: use long or check with subtraction

@@ -1,0 +1,356 @@
+================================================================
+MODULE 9 — NAT, DNS, AND DHCP
+================================================================
+
+NAT — NETWORK ADDRESS TRANSLATION                                 ★★★
+----------------------------------
+Problem: IPv4 has ~4.3B addresses. World has 15B+ devices. We ran out.
+Solution: private IP ranges — reused by every home/office globally.
+  Private IPs never appear on internet. NAT bridges private ↔ public.
+
+How NAT works:
+  Router has ONE public IP.
+  Inside: many devices with private IPs.
+  Router translates private IP:port ↔ public IP:port.
+  Maintains a NAT translation table.
+
+NAT TABLE (on router):
+  Public IP:Port       ↔   Private IP:Port
+  103.21.5.1:40001     ↔   192.168.1.5:54231  (laptop)
+  103.21.5.1:40002     ↔   192.168.1.6:54232  (phone)
+
+Outgoing packet:
+  Laptop sends: src=192.168.1.5:54231, dst=142.250.77.46:80
+  Router rewrites src → 103.21.5.1:40001, records in table, forwards
+
+Incoming response:
+  Google responds to 103.21.5.1:40001
+  Router checks table → 40001 = 192.168.1.5:54231
+  Rewrites dst → forwards to laptop ✓
+
+  Google never sees private IPs. Only sees router's public IP.
+
+
+TYPES OF NAT
+-------------
+Static NAT — 1:1 mapping:
+  One private IP permanently = one public IP.
+  Used for servers inside your network that internet must reach.
+  Internet → public IP → always goes to same internal server.
+
+Dynamic NAT — pool of public IPs:
+  Multiple public IPs in pool. Devices get one temporarily.
+  Not common (still wastes public IPs).
+
+PAT / NAT Overload — many:1 (MOST COMMON):
+  All devices share ONE public IP.
+  Differentiated by PORT NUMBER on the router side.
+  What your home router does. Also called IP Masquerading.
+
+
+SNAT vs DNAT
+-------------
+SNAT (Source NAT):
+  Outgoing traffic. Rewrites SOURCE IP.
+  Private → Internet: change src from private IP to public IP.
+  Your home router does SNAT on every outgoing packet.
+
+DNAT (Destination NAT):
+  Incoming traffic. Rewrites DESTINATION IP.
+  Internet → internal server: change dst from public IP to private server IP.
+  Used in: load balancers, port forwarding, reverse proxies.
+
+
+PORT FORWARDING — DNAT IN PRACTICE
+------------------------------------
+You run a Minecraft server at 192.168.1.10:25565.
+Friend wants to connect using your public IP 103.21.5.1.
+
+Without port forwarding:
+  Router gets packet to 103.21.5.1:25565 → no NAT table entry → DROPPED.
+
+You configure port forwarding:
+  Incoming 103.21.5.1:25565 → DNAT → 192.168.1.10:25565
+
+Friend connects → router rewrites destination → reaches your server ✓
+
+
+NAT LIMITATIONS                                                   ★★★
+----------------
+Breaks end-to-end connectivity:
+  Internet designed so any device talks directly to any other.
+  NAT breaks this — devices behind NAT unreachable from internet.
+
+Peer-to-peer is hard:
+  Two devices behind different NATs can't initiate to each other.
+  Neither has a public reachable address.
+  NAT-B drops unsolicited incoming (no table entry exists).
+
+  Solutions:
+    STUN: discover your public IP:port via STUN server.
+          Share via signaling server. Both punch outward simultaneously.
+          Creates NAT table entries on both sides (hole punching).
+    TURN: relay server in middle. Both connect TO it. Traffic relays.
+          WhatsApp/Zoom fall back to TURN when STUN fails.
+    → This is why WebRTC uses STUN/TURN servers.
+
+IPv6 fixes this:
+  Enough addresses for every device → no NAT needed.
+  True end-to-end connectivity restored.
+
+
+================================================================
+DNS — DOMAIN NAME SYSTEM                                         ★★★
+================================================================
+
+What DNS is:
+  Distributed hierarchical database.
+  Translates human-readable domain names → IP addresses.
+  "Phonebook of the internet."
+  No single server knows everything — different servers handle different parts.
+
+Why needed:
+  142.250.77.46 vs google.com — nobody memorises IPs.
+  Also IPs can change. Domain stays the same.
+
+
+DNS RESOLUTION — FULL STEP-BY-STEP
+-------------------------------------
+You type: google.com
+
+STEP 1 — Browser cache:
+  Browser checks its own DNS cache.
+  Visited recently? Cached IP → done immediately.
+  Cache miss → continue.
+
+STEP 2 — OS cache + /etc/hosts:
+  Browser asks OS. Checks OS DNS cache.
+  Also checks /etc/hosts file (manual overrides).
+  Found → done. Miss → continue.
+
+STEP 3 — Recursive Resolver (your ISP / 8.8.8.8):
+  OS sends query to configured DNS server (received from DHCP).
+  This is the RECURSIVE RESOLVER — does the work on your behalf.
+  Has its own cache. Hit → returns IP. Miss → starts querying.
+
+STEP 4 — Root Nameserver:
+  Resolver asks root server: "where is google.com?"
+  Root doesn't know google.com's IP.
+  Root knows where TLD servers are.
+  Root: "Ask the .com TLD server at x.x.x.x"
+  (13 logical root servers A–M, replicated thousands of times via anycast)
+
+STEP 5 — TLD Nameserver (.com):
+  Resolver asks .com TLD: "where is google.com?"
+  TLD knows who is authoritative for google.com.
+  TLD: "Ask Google's nameserver at ns1.google.com"
+
+STEP 6 — Authoritative Nameserver:
+  Resolver asks Google's own nameserver: "IP for google.com?"
+  This is the DEFINITIVE source.
+  Returns: 142.250.77.46
+
+STEP 7 — Response chain back:
+  Authoritative → Resolver (caches it for TTL duration)
+  Resolver → OS → Browser
+  Browser connects to 142.250.77.46 ✓
+
+  Your Browser
+      ↓ miss
+  OS Cache / /etc/hosts
+      ↓ miss
+  Recursive Resolver (ISP / 8.8.8.8)
+      ↓ miss
+  Root Nameserver (knows TLD locations only)
+      ↓
+  .com TLD Nameserver (knows auth NS for google.com)
+      ↓
+  google.com Authoritative NS (knows actual IP)
+      ↓ answer travels back
+  Browser connects
+
+
+DNS RECORD TYPES                                                  ★★★
+-----------------
+A       domain → IPv4 address         google.com → 142.250.77.46
+AAAA    domain → IPv6 address         google.com → 2404:6800::...
+CNAME   alias → another domain        www.github.com → github.com
+MX      mail server for domain        gmail.com → smtp.google.com
+NS      which nameservers authoritative google.com NS → ns1.google.com
+TXT     arbitrary text                SPF records, domain verification
+PTR     reverse DNS (IP → domain)     142.250.77.46 → google.com
+
+CNAME chain:
+  www.github.com → CNAME → github.com → A → 140.82.112.3
+  Resolver follows chain until A record found.
+  www is NOT special — just a subdomain, usually a CNAME alias.
+  Changing root domain's A record automatically updates www too.
+
+MX in practice:
+  You send email to rohan@gmail.com.
+  Your mail server does MX lookup for gmail.com → smtp.google.com
+  Connects to smtp.google.com to deliver.
+
+PTR (Reverse DNS):
+  Used for spam checks. Mail servers check if IP → domain matches sender.
+
+
+DNS TTL — TIME TO LIVE
+------------------------
+Every record has TTL in seconds.
+  google.com A record  TTL=300 (5 minutes)
+  Resolvers cache this for 5 min. After that → re-query authoritative.
+
+Low TTL (60s):  good for sites that change IPs (failover, deployments)
+High TTL (86400s): stable records, reduces DNS load globally
+
+DNS propagation delay:
+  You update an A record. Old IP stays cached everywhere until TTL expires.
+  Different resolvers expire at different times → propagation takes time.
+
+
+DNS SECURITY
+-------------
+DNS Spoofing / Cache Poisoning:
+  Attacker sends fake DNS response before real one arrives.
+  "google.com = 1.2.3.4" (attacker's server)
+  Resolver caches it. All users get attacker's IP for TTL duration.
+  Users think they're on google.com → MITM attack.
+
+DNSSEC — DNS Security Extensions:
+  Adds digital signatures to DNS records.
+  Resolver verifies signature using public key chain.
+  Forged response → signature invalid → rejected.
+  Prevents cache poisoning.
+
+
+================================================================
+DHCP — DYNAMIC HOST CONFIGURATION PROTOCOL                       ★★★
+================================================================
+
+What DHCP does:
+  Automatically assigns network config to devices when they join.
+  Gives: IP address, subnet mask, default gateway, DNS server(s), lease time.
+
+Why needed:
+  Manual IP config for every device in an office = impossible to manage.
+  DHCP automates this. New device → gets config in seconds.
+
+Why UDP:
+  Client has NO IP yet → can't do TCP handshake (needs IP to send from).
+  Must broadcast. UDP allows src=0.0.0.0, dst=255.255.255.255.
+
+
+DORA PROCESS — 4 STEPS
+------------------------
+D — DISCOVER:
+  Client boots. No IP.
+  Broadcasts: src=0.0.0.0, dst=255.255.255.255 (UDP)
+  "Is there a DHCP server? I need an IP."
+  Every device on LAN receives it. Only DHCP server responds.
+
+O — OFFER:
+  DHCP server (usually router) receives Discover.
+  Replies with an offer:
+    "Take 192.168.1.100
+     Subnet: 255.255.255.0
+     Gateway: 192.168.1.1
+     DNS: 8.8.8.8
+     Lease: 24 hours"
+  (Multiple DHCP servers may offer — client picks first)
+
+R — REQUEST:
+  Client broadcasts: "I accept offer from Server X, I want 192.168.1.100"
+  Broadcast (not unicast): other DHCP servers see this and retract their offers.
+
+A — ACKNOWLEDGE:
+  Chosen DHCP server: "Confirmed. 192.168.1.100 is yours for 24 hours."
+  Client configures itself. Now has full network access.
+
+  CLIENT                                    DHCP SERVER
+    │── DISCOVER (broadcast) ──────────────→│
+    │   src=0.0.0.0  dst=255.255.255.255    │
+    │                                        │
+    │←─ OFFER ──────────────────────────────│
+    │   IP, subnet, gateway, DNS, lease      │
+    │                                        │
+    │── REQUEST (broadcast) ──────────────→ │
+    │   "I accept, I want 192.168.1.100"    │
+    │                                        │
+    │←─ ACKNOWLEDGE ────────────────────────│
+    │   "Confirmed, yours for 24 hours"      │
+
+
+DHCP LEASE
+-----------
+IP assignment is temporary (leased), not permanent.
+
+  At 50% lease time:  client unicasts renewal to same DHCP server.
+  At 87.5% lease:     client broadcasts renewal to any DHCP server.
+  Lease expired + no renewal: client loses IP, must DORA again.
+
+Benefits:
+  Addresses returned to pool when devices leave.
+  No stale IPs wasted on disconnected devices.
+  Laptop at café gets IP → disconnects → IP returned for next user.
+
+DHCP server: usually the router. Enterprise: dedicated DHCP server.
+
+
+★ FULL FLOW — PHONE JOINS WI-FI AND LOADS YOUTUBE
+---------------------------------------------------
+STEP 1 — Wi-Fi join:
+  Phone detects network → enter password
+  WPA2/WPA3 handshake → authenticated, physical connection established
+
+STEP 2 — Get IP via DHCP (DORA):
+  No IP yet → DISCOVER broadcast (0.0.0.0 → 255.255.255.255)
+  Router OFFERS: IP, subnet, gateway=192.168.1.1, DNS=8.8.8.8
+  Phone REQUESTS → Router ACKNOWLEDGES
+  Phone now configured
+
+STEP 3 — Resolve youtube.com:
+  Browser cache miss → OS cache miss
+  Send DNS query to 8.8.8.8 (received from DHCP)
+  8.8.8.8 is outside local network → need to go through gateway
+  ARP for gateway's MAC: "who is 192.168.1.1?" → router replies
+  Now has router's MAC → can create frame → DNS query sent out
+  8.8.8.8 → root → .com TLD → youtube.com auth NS → IP returned
+
+STEP 4 — Connect to YouTube:
+  TCP 3-way handshake to YouTube's IP:443
+  TLS handshake → encrypted HTTP/2 connection
+  Request → response → video plays
+
+
+QUICK REFERENCE
+---------------
+NAT               → translates private IP:port ↔ public IP:port
+PAT/NAT Overload  → many devices share one public IP, differ by port (most common)
+Static NAT        → 1:1, one private permanently = one public (for servers)
+Dynamic NAT       → pool of public IPs assigned temporarily
+SNAT              → rewrite SOURCE (outgoing, private→internet)
+DNAT              → rewrite DESTINATION (incoming, load balancers, port forwarding)
+Port forwarding   → DNAT for specific port → internal server
+NAT limitation    → breaks end-to-end, P2P hard, IPv6 removes need
+STUN              → discover public IP:port, NAT hole punching for P2P
+TURN              → relay server fallback when hole punching fails
+DNS               → translates domain names to IPs (phonebook of internet)
+Recursive resolver → does DNS work on your behalf (ISP / 8.8.8.8)
+Root nameserver   → knows TLD nameserver locations (not actual IPs)
+TLD nameserver    → knows authoritative NS for domains (.com, .in, .org)
+Authoritative NS  → definitive source, knows actual IP for domain
+A record          → domain → IPv4
+AAAA record       → domain → IPv6
+CNAME             → alias → another domain (www → root domain)
+MX                → mail server for domain
+PTR               → reverse DNS, IP → domain (spam checks)
+TXT               → text records (SPF, domain verification)
+DNS TTL           → how long to cache a record
+DNS cache poison  → attacker injects fake records into resolver cache
+DNSSEC            → digital signatures verify DNS responses
+DHCP              → auto-assigns IP, subnet, gateway, DNS to joining devices
+DORA              → Discover → Offer → Request → Acknowledge
+DHCP uses UDP     → client has no IP yet, must broadcast, can't TCP
+DHCP lease        → IP is temporary, must renew or return to pool
+================================================================

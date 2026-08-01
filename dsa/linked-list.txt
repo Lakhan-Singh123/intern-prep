@@ -1,0 +1,206 @@
+================================================================
+LINKED LIST — Interview Prep Notes
+================================================================
+
+CORE STRUCTURE
+--------------
+class ListNode {
+    int val;
+    ListNode next;
+    ListNode(int val) { this.val = val; }
+}
+
+- No index access — must traverse from head
+- Scattered in memory, connected via pointers
+- Always handle: null head, single node, two nodes
+
+
+================================================================
+5 CORE PATTERNS
+================================================================
+
+PATTERN 1: FAST / SLOW POINTERS (Floyd's)
+------------------------------------------
+- slow moves 1 step, fast moves 2 steps
+- Used for: cycle detection, finding middle, nth from end
+
+Finding middle:
+    while (fast != null && fast.next != null) {
+        slow = slow.next;
+        fast = fast.next.next;
+    }
+    // slow is now at middle
+
+Cycle detection (LC 141):
+    if fast == slow → cycle exists
+
+Cycle start (LC 142):
+    After meeting point: reset one pointer to head,
+    move both 1 step at a time → they meet at cycle start
+    WHY: mathematical property — distance from head to
+    cycle start == distance from meeting point to cycle start
+
+Nth from end (LC 19):
+    Move fast n steps ahead, then move both until fast.next == null
+    slow.next is the node to remove → use dummy head
+
+
+PATTERN 2: REVERSAL
+--------------------
+Three variables: prev, current, nextTemp
+
+ListNode prev = null;
+ListNode current = head;
+while (current != null) {
+    ListNode nextTemp = current.next;  // save next
+    current.next = prev;               // reverse link
+    prev = current;                    // advance prev
+    current = nextTemp;                // advance current
+}
+return prev;  // new head
+
+TRAP: forgetting nextTemp → you lose the rest of the list
+TRAP: forgetting to set tail's .next = null → creates cycle
+
+
+PATTERN 3: DUMMY NODE
+----------------------
+Use when head itself might change (deletion, insertion at front)
+
+ListNode dummy = new ListNode(0);
+dummy.next = head;
+ListNode current = dummy;
+// ... manipulate ...
+return dummy.next;
+
+Eliminates if-else for head edge cases completely.
+
+
+PATTERN 4: MERGE
+-----------------
+Two sorted lists → pick smaller head each time
+
+ListNode dummy = new ListNode(0);
+ListNode current = dummy;
+while (list1 != null && list2 != null) {
+    if (list1.val <= list2.val) {
+        current.next = list1;
+        list1 = list1.next;
+    } else {
+        current.next = list2;
+        list2 = list2.next;
+    }
+    current = current.next;
+}
+current.next = (list1 != null) ? list1 : list2;
+return dummy.next;
+
+
+PATTERN 5: IN-PLACE MANIPULATION
+----------------------------------
+Reorder / split / rearrange by rewiring pointers, no extra space.
+Always draw the before/after state on paper first.
+Always save pointers before cutting connections.
+
+
+================================================================
+PROBLEMS COVERED (11 total)
+================================================================
+
+EASY
+----
+LC 206 — Reverse Linked List
+  Pattern: Reversal (iterative)
+  Time: O(n), Space: O(1)
+
+LC 21 — Merge Two Sorted Lists
+  Pattern: Merge + Dummy Node
+  Time: O(n+m), Space: O(1)
+
+LC 141 — Linked List Cycle
+  Pattern: Fast/Slow
+  Time: O(n), Space: O(1)
+
+LC 83 — Remove Duplicates from Sorted List
+  Pattern: In-place (skip duplicates with current.next)
+  Time: O(n), Space: O(1)
+
+LC 876 — Middle of Linked List
+  Pattern: Fast/Slow
+  Time: O(n), Space: O(1)
+
+MEDIUM
+------
+LC 19 — Remove Nth Node From End
+  Pattern: Fast/Slow + Dummy Node
+  Key: move fast n steps, then both move together
+  Time: O(n), Space: O(1)
+
+LC 2 — Add Two Numbers
+  Pattern: In-place simulation
+  Key: carry variable, create new nodes, handle leftover carry
+  Time: O(max(n,m)), Space: O(max(n,m))
+
+LC 142 — Linked List Cycle II
+  Pattern: Fast/Slow (math)
+  Key insight: after detection, reset one pointer to head,
+               move both 1 step → meeting point = cycle start
+  Time: O(n), Space: O(1)
+
+LC 143 — Reorder List
+  Pattern: Fast/Slow + Reversal + Merge
+  Steps:
+    1. Find middle (fast/slow)
+    2. Reverse second half
+    3. Merge two halves alternately
+  WHY: pattern is head→mid and last→mid simultaneously,
+       so reverse second half to align directions
+  Time: O(n), Space: O(1)
+
+HARD
+----
+LC 23 — Merge K Sorted Lists
+  Pattern: Merge + Min-Heap
+  Key: use PriorityQueue<ListNode> with custom comparator
+       always extract min, push its next into heap
+  Time: O(N log K) where N=total nodes, K=number of lists
+  Space: O(K) for heap
+
+  Alternative: Divide & Conquer (merge pairs repeatedly)
+  Time: O(N log K), Space: O(log K) recursion stack
+
+LC 25 — Reverse Nodes in K-Group
+  Pattern: Reversal (iterative/recursive)
+  Key steps:
+    1. Count — verify k nodes exist before reversing
+    2. Reverse those k nodes (standard reversal)
+    3. Track tail of reversed segment for reconnection
+    4. Recurse/iterate on remaining list
+  TRAP: don't reverse unless k nodes are confirmed
+  Time: O(n), Space: O(1) iterative / O(n/k) recursive stack
+
+
+================================================================
+COMMON INTERVIEW TRAPS
+================================================================
+
+1. NPE — always check: is head null? is head.next null?
+2. Losing a pointer — save nextTemp BEFORE cutting .next
+3. Off-by-one in fast/slow — nail your loop exit condition
+4. Forgetting to null-terminate — old .next links still exist
+5. Mutating input — ask interviewer if input can be modified
+6. Cycle in result — especially after reversal/merge, verify tail
+
+
+================================================================
+INTERVIEW TIPS
+================================================================
+
+- Always draw the list before touching code
+- State the pattern you're using before coding
+- Walk through a 4-5 node example by hand
+- For any pointer manipulation: say "prev, curr, nextTemp"
+  out loud — it signals you know the pattern cold
+- Dummy node is always safe to use, never costs you anything
+
+================================================================

@@ -1,0 +1,369 @@
+================================================================
+MODULE 15 — SITUATION-BASED QUESTIONS (THE FINAL GOAL)
+================================================================
+These four scenarios test end-to-end CN understanding.
+Every module builds toward answering these fluently.
+In interviews: name protocols, name layers, mention security.
+
+
+================================================================
+SCENARIO 1 — WHAT HAPPENS WHEN YOU TYPE google.com AND PRESS ENTER?
+================================================================
+Most asked CN interview question. Know every step cold.
+
+PHASE 1 — URL PARSING (Browser):
+  Parses "google.com"
+  No protocol specified → assume HTTPS
+  No port → default 443
+  No path → request "/"
+
+PHASE 2 — DNS RESOLUTION:
+  Browser cache:    checked first. Hit → use IP. Done.
+  OS cache:         check OS DNS cache + /etc/hosts.
+  Recursive resolver: OS queries configured DNS (from DHCP).
+    Resolver cache → hit → returns IP.
+    Cache miss → resolver queries:
+      Root nameserver:     "google.com? Ask .com TLD."
+      .com TLD:            "google.com? Ask ns1.google.com"
+      google.com auth NS:  "142.250.77.46"
+  GeoDNS: authoritative returns nearest Google data center IP.
+  IP returned, cached with TTL.
+
+PHASE 3 — ARP (get gateway MAC):
+  Destination IP (142.250.77.46) not on local network.
+  Device: "send to default gateway 192.168.1.1"
+  ARP cache: gateway MAC cached? Use it.
+  ARP miss: broadcast "who is 192.168.1.1?" → router replies → MAC cached.
+
+PHASE 4 — TCP 3-WAY HANDSHAKE:
+  Packet encapsulated layer by layer:
+    Transport:  TCP segment (src: ephemeral port, dst: 443)
+    Network:    IP packet (src: 192.168.1.5, dst: 142.250.77.46)
+    Data Link:  Ethernet frame (src MAC: your NIC, dst MAC: router MAC)
+    Physical:   bits on wire
+
+  NAT at router:
+    Rewrites src IP: 192.168.1.5 → 103.21.x.x (public IP)
+    Records in NAT table (public:port ↔ private:port)
+
+  Packet travels internet:
+    Each router: strip frame → read IP → longest prefix match → new frame → forward.
+    MAC changes every hop. IP stays same end-to-end.
+
+  3-way handshake:
+    CLIENT → SYN (seq=100) → SERVER
+    CLIENT ← SYN-ACK (seq=200, ack=101) ← SERVER
+    CLIENT → ACK (ack=201) → SERVER
+    TCP connection established.
+
+PHASE 5 — TLS HANDSHAKE:
+  ClientHello: TLS version, cipher suites, client random, DH public key.
+  ServerHello: chosen cipher, server random, certificate, DH public key.
+
+  Client verifies certificate:
+    DigiCert's signature valid? ✓
+    Domain matches google.com? ✓
+    Not expired? ✓
+    Not revoked? ✓
+
+  Both derive session key:
+    shared_secret = DH(client_private, server_public)
+    session_key = mix(shared_secret + client_random + server_random)
+
+  Finished messages exchanged (encrypted).
+  Encrypted tunnel established.
+
+PHASE 6 — HTTP REQUEST:
+  Browser sends (encrypted with AES session key):
+    GET / HTTP/2
+    Host: google.com
+    User-Agent: Chrome/120
+    Accept: text/html
+
+  HTTP/2: multiplexed streams, binary framing, header compression.
+
+PHASE 7 — SERVER PROCESSES:
+  Google's load balancer receives request.
+  Routes to available backend server (least connections / round robin).
+  Backend generates HTML response.
+  Returns: HTTP/2 200 OK + HTML.
+
+PHASE 8 — RESPONSE TRAVELS BACK:
+  Same path in reverse through internet.
+  NAT router: response to 103.21.x.x:40001 → checks table
+              → rewrites dst to 192.168.1.5:54231 → forwards to laptop.
+  TCP: reassembles segments in order. ACKs each.
+  TLS: decrypts.
+  Browser receives HTML.
+
+PHASE 9 — BROWSER RENDERS:
+  Parses HTML → finds CSS, JS, image URLs.
+  Fires more requests on same HTTP/2 connection (multiplexing).
+  Static resources (CSS, JS, images): served from CDN edge nodes.
+  DOM built → page rendered.
+
+INTERVIEW SKELETON:
+  DNS (cache→resolver→root→TLD→auth, GeoDNS for nearest DC)
+  → ARP (get gateway MAC)
+  → TCP 3-way handshake
+  → NAT (private→public IP at router, MAC changes each hop, IP stays same)
+  → TLS (cert verify, DH key exchange, session key)
+  → HTTP/2 GET
+  → Load balancer → backend server
+  → Response (NAT reverse)
+  → Browser renders (CDN serves static assets)
+
+
+================================================================
+SCENARIO 2 — WHAT HAPPENS WHEN DNS FAILS?
+================================================================
+
+NORMAL FLOW BREAKS AT DNS PHASE.
+Browser cache miss → OS cache miss → /etc/hosts miss → resolver queried.
+
+CASE A — RESOLVER UNREACHABLE:
+  UDP packet to resolver sent. No response.
+  OS retries 2-3 times. Each times out (2-5 seconds each).
+  Total: 10-15 seconds of waiting.
+  OS returns: "DNS resolution failed."
+  Browser: "ERR_NAME_NOT_RESOLVED" or "DNS_PROBE_FINISHED_NXDOMAIN"
+
+CASE B — DOMAIN DOESN'T EXIST (NXDOMAIN):
+  Resolver responds instantly: "that domain does not exist."
+  Browser: DNS error immediately. No timeout wait.
+
+CASE C — DNS SPOOFING / POISONING:
+  Resolver returns attacker's IP instead of Google's.
+  Browser connects to attacker's server on port 443.
+  TLS: attacker's certificate doesn't match google.com.
+  Browser: RED WARNING — "Your connection is not private."
+           NET::ERR_CERT_AUTHORITY_INVALID
+  TLS SAVES YOU even when DNS is fully poisoned.
+  (User still vulnerable if they click "proceed anyway")
+
+FALLBACK OPTIONS:
+  /etc/hosts file:    add "142.250.77.46 google.com" → bypasses DNS entirely.
+  Secondary DNS:      configure backup resolver (8.8.4.4 if 8.8.8.8 fails).
+  Direct IP:          type IP in browser → skips DNS. Rare.
+  VPN:                VPN has own DNS → bypasses broken local DNS.
+  DNSSEC:             digital signatures on records → spoofing detected.
+
+WHY DNS USES UDP (not TCP):
+  Query = tiny (< 512 bytes). UDP: no handshake, send → get response.
+  Faster than TCP's 3-way handshake for single small query.
+  No response → simple retry (UDP stateless).
+  Large responses (DNSSEC) → TCP fallback (DNS over TCP).
+
+
+================================================================
+SCENARIO 3 — WHAT HAPPENS WHEN YOU CONNECT TO PUBLIC WI-FI?
+================================================================
+
+PHASE 1 — WI-FI JOINING:
+  Phone scans: listens for beacon frames ("CafeWifi" broadcasting SSID).
+  You select → WPA2 handshake (or open — no password).
+  4-way handshake → derive PTK session key (if WPA2).
+  Association: phone associated with AP.
+
+PHASE 2 — DHCP (DORA):
+  Phone has no IP. Broadcasts DISCOVER (src=0.0.0.0, dst=255.255.255.255).
+  Cafe router OFFERS: IP=192.168.50.42, subnet, gateway, DNS=8.8.8.8.
+  Phone REQUESTS → router ACKNOWLEDGES.
+  Phone configured. Can reach internet.
+
+PHASE 3 — SECURITY RISKS:
+
+  Risk 1 — Packet Sniffing:
+    Wi-Fi = shared medium. Attacker: Wireshark in monitor mode.
+    Open network (no password): everything in plain text.
+    HTTP: passwords, cookies, content = fully visible.
+    HTTPS: content encrypted, not readable.
+    Protection: HTTPS always, VPN encrypts everything.
+
+  Risk 2 — Evil Twin AP:
+    Attacker sets up "CafeWifi" with stronger signal. Phone connects.
+    SSID stolen passively from beacon frames (always broadcast).
+    BSSID (AP MAC) also cloned to look identical.
+    Attacker = full MITM. All traffic through them.
+    HTTPS: cert mismatch → browser warning → detected.
+    HTTP: attacker reads everything, can inject content.
+    Protection: VPN (encrypted before leaving device).
+
+  Risk 3 — ARP Spoofing:
+    Attacker: fake ARP reply "I am the gateway (192.168.50.1)."
+    Phone's ARP cache poisoned → all traffic to attacker.
+    HTTPS content protected. Metadata (IPs, timing) visible.
+    Protection: VPN.
+
+  Risk 4 — Rogue DHCP Server:
+    Attacker runs DHCP server, responds before real one.
+    Gives phone: gateway = attacker's IP, DNS = attacker's server.
+    All traffic + DNS → attacker.
+    Protection: VPN (establishes before any sensitive traffic).
+
+PROTECTION LAYERS:
+  HTTPS:  cert check stops content MITM for web. TLS saves even if DNS poisoned.
+  VPN:    encrypts ALL IP traffic before leaving device. Attacker sees only VPN endpoint.
+  HSTS:   browser refuses HTTP, forces HTTPS even on attacker's network.
+
+COMPLETE PROTECTION: HTTPS + VPN = safe on fully hostile network.
+Attacker sees: encrypted VPN traffic to VPN server. Nothing else.
+
+
+================================================================
+SCENARIO 4 — HOW DOES A CDN SERVE AN IMAGE OR VIDEO?
+================================================================
+
+SETUP: User in Delhi. App origin server in Mumbai. CDN edge in Delhi.
+
+STEP 1 — DNS (find nearest edge):
+  Browser resolves: cdn.app.com
+  GeoDNS → returns Delhi CDN edge node IP (not Mumbai origin).
+  OR Anycast → same CDN IP, BGP routes to Delhi edge.
+
+STEP 2 — REQUEST REACHES EDGE:
+  Browser → TCP + TLS → Delhi edge node.
+  Edge handles SSL termination (decrypts, inspects, may re-encrypt to origin).
+  HTTP GET /profile_photo.jpg
+
+STEP 3A — CACHE HIT (photo requested before, within TTL):
+  Edge: found in local cache. Not expired.
+  Edge → returns photo directly. Origin never contacted.
+  Latency: ~5ms (Delhi user → Delhi edge). Done.
+
+STEP 3B — CACHE MISS (first request):
+  Edge: not in cache.
+  Edge → TCP → Mumbai origin server (origin pull).
+  Origin returns photo with cache headers:
+    Cache-Control: max-age=86400 (cache for 24 hours)
+  Edge caches photo. Serves to user.
+  Latency: 5ms (user→edge) + 15ms (edge→Mumbai→edge) = ~20ms.
+  All future Delhi requests: 5ms (cache hit).
+
+STEP 4 — TTL EXPIRY:
+  24 hours pass. Entry expires (stale).
+  Next request: miss → origin pull → re-cache.
+
+STEP 5 — CACHE INVALIDATION (photo updated):
+  User changes photo. Origin updated.
+  App sends CDN PURGE command → CDN clears entry everywhere.
+  Next request anywhere: miss → fresh from origin.
+  Better approach: versioned URLs → /profile_photo_v2.jpg
+  New URL = new cache entry. Old URL never conflicts.
+
+VIDEO — ADAPTIVE BITRATE STREAMING:
+  Video is large (100MB+). Not served as single file.
+  Formats: HLS (.m3u8) or DASH (.mpd)
+  Video split into small chunks (2-10 seconds each).
+  Multiple quality versions: 360p, 720p, 1080p, 4K.
+
+  Player:
+    Requests manifest file → learns chunk URLs.
+    Requests chunks one by one.
+    Good network → 1080p chunks.
+    Network degrades → switches to 720p. Seamless.
+
+  CDN: caches popular video chunks at edge.
+  Less popular content: origin pull on demand.
+  Live video: no caching (real-time). Edge nodes reduce latency
+              from encoder to viewers. Still globally distributed.
+
+
+★ DO YOU ALWAYS HIT A CDN? NO.
+-------------------------------
+GeoDNS / Anycast = routing mechanisms to nearest location.
+CDN edge = what you reach if content is CACHED static.
+Load balancer = what you reach if request needs SERVER processing.
+
+  google.com search (dynamic, personalised):
+    GeoDNS → nearest Google DC → load balancer → backend servers.
+    No CDN. Always hits real servers.
+
+  google.com logo (static):
+    Nearest CDN edge → cached → instant. Origin not contacted.
+
+  YouTube video:
+    Metadata, recs → actual servers (dynamic).
+    Video chunks → CDN edge nodes (static, cached).
+
+  Cloudflare-fronted site:
+    Anycast → nearest Cloudflare edge.
+    Cache hit: served from edge.
+    Cache miss or dynamic: forwarded to origin server.
+
+
+================================================================
+INTERVIEW ANSWER GUIDE
+================================================================
+
+HOW TO STRUCTURE ANY SCENARIO ANSWER:
+  1. Start at the right layer:
+       "type google.com" → start from browser/DNS.
+       "connect to Wi-Fi" → start from Wi-Fi joining/DHCP.
+       "DNS fails" → explain normal flow, then what breaks.
+
+  2. Name protocols at each step:
+       DNS → ARP → TCP → NAT → TLS → HTTP → response.
+       Don't say "internet magic happens."
+
+  3. Mention layers explicitly:
+       "At data link layer, ARP resolves gateway MAC."
+       "At network layer, longest prefix match routing."
+       "At transport layer, TCP ensures reliable delivery."
+
+  4. Mention security where relevant:
+       TLS handshake, certificate verification, HTTPS vs HTTP risks.
+
+  5. Handle follow-ups:
+       "Server is down?"    → TCP SYN gets no SYN-ACK → timeout → browser error.
+       "Packet lost?"       → TCP detects via 3 dup ACKs → fast retransmit.
+       "What does NAT do?"  → private IP → public IP, keeps mapping table.
+       "Why HTTP/2?"        → multiplexing, no app-layer HOL blocking.
+       "How does TLS help?" → cert verification stops MITM, AES encrypts data.
+
+
+MASTER SKELETON — google.com:
+  DNS (cache → resolver → root → TLD → auth → GeoDNS)
+  ARP (gateway MAC)
+  TCP 3-way (SYN → SYN-ACK → ACK)
+  NAT (private→public, MAC changes each hop, IP stays same)
+  TLS (ClientHello → cert verify → DH → session key → Finished)
+  HTTP/2 GET /
+  Load balancer → backend server → 200 OK
+  Response (NAT reverse translate)
+  Browser renders (CDN serves static, HTTP/2 multiplexing)
+
+MASTER SKELETON — Public Wi-Fi:
+  WPA2 join → 4-way handshake → PTK
+  DHCP DORA → get IP, gateway, DNS
+  Risks: sniff / evil twin (BSSID clone) / ARP spoof / rogue DHCP
+  Protection: HTTPS (cert check) + VPN (all traffic encrypted)
+
+MASTER SKELETON — CDN:
+  GeoDNS/Anycast → nearest edge
+  Cache hit → instant, origin untouched
+  Cache miss → origin pull → cache → serve
+  TTL → expiry → re-fetch
+  Invalidation → purge or versioned URLs
+  Video → HLS/DASH chunks → adaptive bitrate
+
+
+QUICK REFERENCE
+---------------
+google.com flow    → DNS→ARP→TCP→NAT→TLS→HTTP→LB→server→response→render
+DNS failure        → timeout(10-15s) / NXDOMAIN(instant) / spoof+TLS saves you
+DNS fallback       → /etc/hosts, secondary DNS, VPN, DNSSEC
+Why DNS uses UDP   → tiny query, no handshake needed, simple retry
+Public Wi-Fi risks → sniff / evil twin / ARP spoof / rogue DHCP
+Evil twin          → clones SSID+BSSID, stronger signal wins, MITM
+Deauth + capture   → force reconnect, sniff 4-way handshake, offline brute force
+HTTPS on bad Wi-Fi → cert check stops MITM for web content
+VPN on bad Wi-Fi   → encrypts ALL traffic, attacker sees only VPN endpoint
+CDN cache hit      → edge serves, origin untouched, ~1ms
+CDN cache miss     → origin pull, edge caches, slower first time
+Cache invalidation → purge command OR versioned URLs
+CDN ≠ always       → static=CDN, dynamic=actual servers
+GeoDNS             → DNS returns nearest server IP per region
+Anycast            → same IP multiple locations, BGP routes to nearest
+Adaptive bitrate   → video in chunks, quality adjusts to network (HLS/DASH)
+================================================================

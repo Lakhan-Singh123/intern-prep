@@ -1,0 +1,236 @@
+================================================================
+MODULE 5 — NETWORK LAYER: IP ADDRESSING
+================================================================
+
+NETWORK LAYER
+-------------
+Handles end-to-end delivery of packets from source to destination
+across multiple networks. Two jobs:
+  1. Logical addressing — IP addresses identify devices globally
+  2. Routing — deciding best path from source to destination
+
+Key protocol: IP (Internet Protocol)
+
+
+IPv4
+----
+32-bit address, written in dotted decimal (4 groups of 8 bits, each 0-255)
+
+  Binary:  11000000.10101000.00000001.00000101
+  Decimal: 192     . 168    .   1    .   5
+
+32 bits = 2^32 = ~4.3 billion addresses. Exhausted → IPv6 needed.
+
+
+IPv4 DATAGRAM — KEY FIELDS
+---------------------------
+TTL (Time to Live):
+  Counter set by sender (usually 64 or 128).
+  Each router decrements by 1. TTL=0 → router drops packet,
+  sends ICMP "Time Exceeded" back. Prevents infinite loops.
+
+Protocol:
+  What's inside payload. TCP=6, UDP=17, ICMP=1.
+
+Source/Destination IP:
+  Stay the SAME for entire journey (unlike MAC which changes every hop).
+
+
+PRIVATE vs PUBLIC IP                                              ★★★
+--------------------
+Private IPs — NOT routable on internet. Reused by millions of networks.
+  10.0.0.0    – 10.255.255.255    (/8)   Class A private
+  172.16.0.0  – 172.31.255.255    (/12)  Class B private
+  192.168.0.0 – 192.168.255.255   (/16)  Class C private
+
+Public IP — globally unique, assigned by ISP, routable on internet.
+
+Real example:
+  Your Laptop:  192.168.1.5  (private — only inside home network)
+  Your Phone:   192.168.1.6  (private — only inside home network)
+  Jio Router:   103.21.x.x   (public — routable on internet)
+  Internet sees only the router's public IP. NAT handles translation.
+
+Special addresses:
+  127.0.0.1        → loopback (your own machine / localhost)
+  255.255.255.255  → broadcast (everyone on local network)
+  0.0.0.0          → default route (match everything)
+
+
+CLASSFUL ADDRESSING (historical, know for context)
+---------------------------------------------------
+Class A: 0–127.x.x.x     /8   (16M hosts per network)
+Class B: 128–191.x.x.x   /16  (65,534 hosts per network)
+Class C: 192–223.x.x.x   /24  (254 hosts per network)
+Class D: 224–239.x.x.x   Multicast
+Class E: 240–255.x.x.x   Reserved
+
+Problem: Company needs 300 hosts.
+  Class C (254) = too small. Class B (65,534) = 65,234 addresses wasted.
+  Led to IP exhaustion → CIDR solved this.
+
+
+SUBNET MASK AND SUBNETTING                                        ★★★
+---------------------------
+IP address = NETWORK part + HOST part
+Subnet mask defines where the split is (1s = network, 0s = host)
+
+  /24 mask:
+    Binary:  11111111.11111111.11111111.00000000
+    Decimal: 255.255.255.0
+    First 24 bits = network. Last 8 bits = host.
+
+KEY CALCULATIONS for any subnet:
+  Total addresses = 2^(host bits) = 2^(32 - prefix)
+  Usable hosts    = total - 2
+    (-2 for network address and broadcast address)
+
+  Network address  = IP with all host bits set to 0
+  Broadcast        = IP with all host bits set to 1
+  Usable range     = network+1  to  broadcast-1
+
+Example — 192.168.1.0/24:
+  Host bits = 32 - 24 = 8
+  Total addresses = 2^8 = 256
+  Usable = 254
+  Network address:  192.168.1.0
+  Broadcast:        192.168.1.255
+  Usable range:     192.168.1.1 – 192.168.1.254
+
+Why subtract 2?
+  .0   = network address (identifies the network, can't assign to device)
+  .255 = broadcast address (reaches all devices, can't assign to device)
+
+
+SUBNETTING — DIVIDING A NETWORK                                   ★★★
+-------------------------------
+Problem: 192.168.1.0/24, need 4 subnets.
+
+Step 1: How many bits to represent 4 subnets? → 2^2 = 4 → need 2 bits
+Step 2: Borrow 2 bits from host side. New prefix = /24+2 = /26
+Step 3: Host bits left = 32-26 = 6. Each subnet = 2^6 = 64 addresses, 62 usable
+Step 4: Increment = 64. List subnets:
+
+  Subnet 1: 192.168.1.0/26    → usable: .1   – .62    broadcast: .63
+  Subnet 2: 192.168.1.64/26   → usable: .65  – .126   broadcast: .127
+  Subnet 3: 192.168.1.128/26  → usable: .129 – .190   broadcast: .191
+  Subnet 4: 192.168.1.192/26  → usable: .193 – .254   broadcast: .255
+
+Increment rule: increment = 2^(host bits after borrowing) = 2^6 = 64
+Start at 0, add 64 each time.
+
+
+QUICK REFERENCE TABLE
+----------------------
+Prefix  Subnet Mask         Addresses  Usable  Increment
+/24     255.255.255.0       256        254     256
+/25     255.255.255.128     128        126     128
+/26     255.255.255.192     64         62      64
+/27     255.255.255.224     32         30      32
+/28     255.255.255.240     16         14      16
+/29     255.255.255.248     8          6       8
+/30     255.255.255.252     4          2       4  ← point-to-point links
+
+Formula: addresses = 2^(32-prefix), usable = addresses - 2
+
+
+CIDR — CLASSLESS INTER-DOMAIN ROUTING                             ★★★
+--------------------------------------
+Replaced classful addressing. Any prefix length is valid (not just /8, /16, /24).
+
+Benefit 1 — Flexible allocation:
+  Need 500 hosts? Get /23 (510 usable). Not wasteful Class B (/16).
+
+Benefit 2 — Route aggregation (supernetting):
+  Instead of 4 separate routes in routing table:
+    192.168.0.0/24, 192.168.1.0/24, 192.168.2.0/24, 192.168.3.0/24
+  Announce ONE aggregated route:
+    192.168.0.0/22  (covers all four)
+  Routers have smaller tables → faster routing
+
+CIDR notation: 192.168.1.0/26 (the /26 is the prefix length)
+
+
+ICMP — INTERNET CONTROL MESSAGE PROTOCOL                          ★★★
+----------------------------------------
+Lives at Network Layer. Used for error reporting and diagnostics.
+NOT for data transfer — only for control messages.
+
+Ping (ICMP Echo Request/Reply):
+  You → ICMP Echo Request  → 8.8.8.8
+  You ← ICMP Echo Reply    ← 8.8.8.8
+  Output: Reply from 8.8.8.8: time=23ms TTL=118
+  Tells you: is host alive? How long to reach?
+
+Traceroute:
+  Sends packets with TTL=1, TTL=2, TTL=3...
+  Each router that hits TTL=0 sends back "ICMP Time Exceeded" with its IP
+  Reveals every hop between you and destination
+
+  traceroute google.com:
+  1  192.168.1.1   (your home router)    1ms
+  2  103.21.x.x   (Jio router)          5ms
+  3  182.79.x.x   (Jio backbone)        8ms
+  ...
+  8  8.8.8.8      (Google)              23ms
+
+Ping fails → possible reasons:
+  1. Host is down or unreachable
+  2. Firewall blocking ICMP packets
+  3. Wrong IP / DNS failure
+  4. Routing issue between you and host
+
+
+IP ADDRESSING MODES
+--------------------
+Unicast   → one sender, one specific receiver
+Broadcast → one sender, all devices on local network
+            255.255.255.255 = limited broadcast (never crosses router)
+            x.x.x.255 = directed broadcast (to all hosts in subnet)
+Multicast → one sender, subscribed group of receivers (224.x.x.x range)
+
+
+IPv6                                                              ★★
+----
+128-bit address. Written as 8 groups of 4 hex digits separated by colons.
+  Full:      2001:0db8:85a3:0000:0000:8a2e:0370:7334
+  Shortened: 2001:db8:85a3::8a2e:370:7334
+  Rules: omit leading zeros, replace one run of all-zero groups with ::
+
+Why IPv6:
+  IPv4 exhausted (4.3B addresses not enough)
+  IPv6 = 2^128 = 3.4×10^38 addresses
+
+Key differences from IPv4:
+  No broadcast (uses multicast instead)
+  IPSec built-in (not optional like IPv4)
+  No NAT needed (enough addresses for every device)
+  Simplified header (fewer fields, faster processing)
+  SLAAC — devices auto-configure their own IPv6 address
+  Loopback: ::1 (equivalent to 127.0.0.1)
+
+IPv6 over IPv4 (tunneling):
+  Internet still mostly IPv4. To send IPv6 over IPv4 infrastructure:
+  wrap IPv6 packet inside IPv4 packet. Called 6in4 tunneling.
+
+
+QUICK REFERENCE
+---------------
+Network layer     → end-to-end delivery, logical addressing, routing
+IPv4              → 32-bit, dotted decimal, 4.3B addresses
+TTL               → decremented each hop, prevents infinite loops
+Private IPs       → 10.x, 172.16-31.x, 192.168.x — not internet routable
+Public IP         → globally unique, assigned by ISP
+Loopback          → 127.0.0.1 = your own machine
+Subnet mask       → 1s = network bits, 0s = host bits
+Network address   → all host bits = 0
+Broadcast         → all host bits = 1
+Usable hosts      → 2^(host bits) - 2
+Subnetting        → borrow host bits → more networks, fewer hosts each
+CIDR              → flexible prefix lengths + route aggregation
+Increment         → 2^(remaining host bits) — gap between subnets
+ICMP              → error reporting + diagnostics (not data transfer)
+Ping              → ICMP Echo Request/Reply — tests reachability
+Traceroute        → TTL trick reveals each hop to destination
+IPv6              → 128-bit, hex, no broadcast, IPSec built-in, no NAT
+================================================================

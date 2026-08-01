@@ -1,0 +1,242 @@
+================================================================
+GREEDY — Interview Prep Notes
+================================================================
+
+REVISION FLAGS:
+  🔴 EXTREME — re-attempt + understand the proof:
+      LC 135 — Candy (two-pass, why both passes needed)
+      LC 406 — Queue Reconstruction by Height (sort tallest first insight)
+
+  🟡 PROOF REVISION — understand WHY greedy works, not just how:
+      LC 134 — Gas Station (why failed starts can be fully discarded)
+      LC 435 — Non-overlapping Intervals (why earliest-end is always optimal)
+
+  🟢 QUICK REVISION:
+      LC 455 — Assign Cookies
+      LC 56  — Merge Intervals
+      LC 57  — Insert Interval
+      LC 763 — Partition Labels
+
+================================================================
+
+CORE IDEA
+---------
+Make the locally optimal choice at every step.
+Hope (and prove) it leads to the globally optimal solution.
+
+GREEDY vs DP:
+  Greedy → current choice never harms future choices
+  DP     → current choice affects what's available/optimal later
+
+Practical test: try greedy, then try to construct a counterexample.
+If no counterexample → greedy is likely correct.
+If counterexample exists → use DP.
+
+
+================================================================
+5 CORE PATTERNS
+================================================================
+
+PATTERN 1: INTERVAL SCHEDULING
+--------------------------------
+Sort is always the first step. The sort KEY determines correctness.
+
+LC 435 — Non-overlapping Intervals (minimum removals)
+  Sort by END time (not start — long early intervals block everything)
+  Keep interval ending earliest → leaves maximum room for future
+  When overlap detected: remove current (count++), keep earlier ending one
+
+    Arrays.sort(intervals, (a,b) -> a[1] - b[1]);  // sort by END
+    int removed = 0, lastEnd = intervals[0][1];
+    for (int i = 1; i < intervals.length; i++) {
+        if (intervals[i][0] < lastEnd) removed++;     // overlap → remove
+        else lastEnd = intervals[i][1];               // no overlap → keep
+    }
+
+LC 56 — Merge Intervals
+  Sort by START time
+  If current start ≤ last merged end → overlap → extend end
+  Else → no overlap → push new interval
+
+    Arrays.sort(intervals, (a,b) -> a[0] - b[0]);
+    result.add(intervals[0]);
+    for (int i = 1; i < n; i++) {
+        int[] last = result.get(result.size()-1);
+        if (intervals[i][0] <= last[1])
+            last[1] = Math.max(last[1], intervals[i][1]);
+        else result.add(intervals[i]);
+    }
+
+LC 57 — Insert Interval
+  Three phases (no sort needed — already sorted):
+    Phase 1: add all intervals ending before new interval starts
+    Phase 2: merge all overlapping with new interval (extend new interval)
+    Phase 3: add all remaining
+  Overlap condition: intervals[i][0] <= newInterval[1]
+
+
+PATTERN 2: SORT + GREEDY DECISION
+-----------------------------------
+Sort to establish an order, then greedily assign/match.
+
+LC 455 — Assign Cookies
+  Sort both greed[] and size[]
+  Two pointers: if cookie satisfies child → both advance. Else → next cookie only.
+
+LC 406 — Queue Reconstruction by Height
+  Sort: tallest first (desc height), then by k ascending for ties
+  Insert each person at index k into result list
+  WHY: all already-placed people are taller → inserting at k puts exactly k taller people in front
+
+
+PATTERN 3: GREEDY ON STRINGS
+------------------------------
+LC 763 — Partition Labels
+  Find last occurrence of every character first
+  Scan left to right, extend current partition's end = max last occurrence of chars seen
+  When i == current end → cut here, start new partition
+
+    int[] lastIndex = new int[26];
+    for (int i = 0; i < s.length(); i++) lastIndex[s.charAt(i)-'a'] = i;
+
+    int start = 0, end = 0;
+    for (int i = 0; i < s.length(); i++) {
+        end = Math.max(end, lastIndex[s.charAt(i)-'a']);
+        if (i == end) { result.add(end-start+1); start = i+1; }
+    }
+
+
+PATTERN 4: TWO-PASS GREEDY
+----------------------------
+Some constraints need left-to-right AND right-to-left passes.
+First pass satisfies left-neighbour constraint.
+Second pass satisfies right-neighbour constraint.
+Combine with Math.max (take the stronger requirement).
+
+LC 135 — Candy
+    int[] candies = new int[n];
+    Arrays.fill(candies, 1);
+
+    // left to right: right child higher rating → +1 more than left
+    for (int i = 1; i < n; i++)
+        if (ratings[i] > ratings[i-1]) candies[i] = candies[i-1]+1;
+
+    // right to left: left child higher rating → must be > right
+    for (int i = n-2; i >= 0; i--)
+        if (ratings[i] > ratings[i+1]) candies[i] = Math.max(candies[i], candies[i+1]+1);
+
+
+PATTERN 5: CIRCULAR / RUNNING SUM GREEDY
+------------------------------------------
+LC 134 — Gas Station
+  Key insight: if total gas >= total cost → solution always exists
+  Starting point: first index after which running sum never goes negative
+
+    int totalTank=0, currentTank=0, start=0;
+    for (int i = 0; i < n; i++) {
+        int net = gas[i] - cost[i];
+        totalTank += net;
+        currentTank += net;
+        if (currentTank < 0) { start = i+1; currentTank = 0; }
+    }
+    return totalTank >= 0 ? start : -1;
+
+
+================================================================
+PROBLEMS COVERED (8 total)
+================================================================
+
+EASY
+----
+LC 455 — Assign Cookies          → sort both, two pointers
+
+MEDIUM
+------
+LC 56  — Merge Intervals          → sort by start, extend on overlap
+LC 57  — Insert Interval          → three-phase scan
+LC 435 — Non-overlapping Intervals → sort by END, keep earliest end
+LC 763 — Partition Labels         → last occurrence + extend end
+LC 134 — Gas Station              → running sum, reset start on negative
+LC 406 — Queue Reconstruction     → sort tallest first, insert at index k
+
+HARD
+----
+LC 135 — Candy                    → two-pass left-right, combine with max
+
+
+================================================================
+SORT KEY CHEAT SHEET (interval problems)
+================================================================
+
+Problem                    | Sort By  | Why
+---------------------------|----------|----------------------------------
+Merge Intervals            | Start ↑  | Process left to right, extend
+Non-overlapping Intervals  | End ↑    | Keep earliest-ending, most room
+Insert Interval            | No sort  | Already sorted, three-phase scan
+Meeting Rooms I            | Start ↑  | Check consecutive for overlap
+Meeting Rooms II           | Start ↑  | Min-heap of end times
+
+
+================================================================
+COMMON INTERVIEW TRAPS
+================================================================
+
+1. Sorting intervals by start for non-overlapping → wrong, sort by end
+2. Not using Math.max when extending merged interval end
+3. Insert Interval phase 2 overlap condition: intervals[i][0] <= newInterval[1]
+   (not <, equal start counts as overlap)
+4. Gas Station: don't try all starting points — use running sum trick
+5. Candy: one pass only → misses one direction of constraint
+6. Queue Reconstruction: sort ascending k for same height, not descending
+
+
+================================================================
+★ MASTER SIGNAL TABLE — PATTERN RECOGNITION
+================================================================
+
+When you see this in a problem...              → Think this pattern
+
+"merge overlapping intervals"                  → Sort by start, extend on overlap
+"minimum intervals to remove (no overlap)"     → Sort by END, keep earliest end
+"insert new interval into sorted list"         → Three-phase scan (no sort needed)
+"assign resources to minimize waste"           → Sort both arrays + two pointers
+"partition string into maximum parts"          → Last occurrence map + extend end
+"task scheduling with N cooldown"              → Greedy + max-heap (most frequent first)
+"start point for circular journey"             → Running sum, reset on negative
+"distribute candies by rating"                 → Two-pass greedy (left→right, right→left)
+"reconstruct queue by height"                  → Sort tallest first, insert at index k
+
+★ GREEDY vs DP — the one question to ask:
+  "Does this choice affect what's available later?"
+    No  → Greedy (local best = global best)
+    Yes → DP (current choice constrains future)
+
+  Quick test: try greedy → construct a counterexample.
+  No counterexample found? → greedy is likely correct.
+
+★ SORT KEY SIGNALS — wrong sort key = wrong answer:
+  "merge / combine intervals"                  → sort by START
+  "maximize intervals kept (no overlap)"       → sort by END
+  "arrange people by height k"                 → sort by HEIGHT descending
+
+★ TWO-PASS SIGNALS:
+  "constraint from BOTH left and right neighbours" → two-pass greedy
+  "candy/rating with neighbour conditions"     → left pass then right pass, Math.max
+
+★ DISGUISED GREEDY SIGNALS (check greedy before jumping to DP):
+  "minimum operations to arrange/sort"         → check if n - LIS or greedy applies
+  "task scheduling with constraints"           → greedy (most frequent first)
+  "queue/line arrangement by attribute"        → sort by that attribute greedily
+
+================================================================
+INTERVIEW TIPS
+================================================================
+
+- Interval problems: always ask "should I sort by start or end?" out loud
+- When you see intervals → think sort first, then scan once O(n log n)
+- "Minimum removals / maximum kept" in intervals → sort by end time
+- "Merge overlapping" → sort by start time
+- If greedy feels wrong → try small counterexample before switching to DP
+- Greedy time complexity: usually O(n log n) for sort + O(n) scan
+
+================================================================

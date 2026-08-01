@@ -1,0 +1,303 @@
+================================================================
+MODULE 7 — TRANSPORT LAYER
+================================================================
+
+WHAT TRANSPORT LAYER DOES
+--------------------------
+Network layer delivers packets to your DEVICE (IP address).
+Transport layer delivers data to the correct APPLICATION (port number).
+
+Multiplexing: multiple apps share one network interface via port numbers.
+
+  Incoming data at 192.168.1.5:
+    src=8.8.8.8:80,   dst=192.168.1.5:54231 → Chrome
+    src=3.4.5.6:443,  dst=192.168.1.5:54232 → Spotify
+    src=1.2.3.4:5222, dst=192.168.1.5:54233 → WhatsApp
+  Same IP, different ports → different applications.
+
+
+PORTS
+-----
+16-bit number (0–65535) identifying a specific application/process.
+
+Well-known (0–1023):
+  HTTP=80, HTTPS=443, DNS=53, SSH=22, FTP=21/20, SMTP=25, DHCP=67/68
+
+Registered (1024–49151):
+  MySQL=3306, MongoDB=27017, Redis=6379, PostgreSQL=5432
+
+Ephemeral/Dynamic (49152–65535):
+  OS assigns these to CLIENTS for outgoing connections.
+  Your browser gets a random port here when connecting to Google.
+
+SOCKET = IP + Port (unique endpoint)
+  192.168.1.5:54231 = your browser tab
+  8.8.8.8:443       = Google's HTTPS server
+
+CONNECTION = 4-tuple (uniquely identifies one TCP connection):
+  (Source IP, Source Port, Destination IP, Destination Port)
+  Two browser tabs to same site = same dst, different src ports.
+
+
+UDP — USER DATAGRAM PROTOCOL
+------------------------------
+Connectionless. No handshake. Fire and forget.
+
+What UDP does NOT have:
+  No connection setup
+  No acknowledgements
+  No ordering guarantee
+  No retransmission
+  No flow/congestion control
+
+UDP Header (only 8 bytes):
+  Source Port | Dest Port | Length | Checksum
+
+Why use UDP if unreliable?
+  Speed — no handshake delay, no ACK waiting = lower latency
+  Old data is useless — gaming positions, live video frames
+  Single request-response — DNS (just ask again if lost)
+  App handles reliability itself — QUIC/HTTP3 does this
+
+UDP use cases:
+  DNS, video streaming, gaming, VoIP, DHCP, QUIC/HTTP3
+
+
+TCP — TRANSMISSION CONTROL PROTOCOL
+-------------------------------------
+Guarantees: delivery, order, error-free, flow control, congestion control.
+Price: overhead, higher latency, complex.
+
+
+TCP 3-WAY HANDSHAKE — CONNECTION SETUP                            ★★★
+--------------------------------------
+CLIENT                    SERVER
+  │── SYN (seq=100) ──────→│  "I want to connect, my seq starts at 100"
+  │←─ SYN-ACK (seq=200,    │  "OK, my seq starts at 200, got your 100"
+  │         ack=101) ──────│
+  │── ACK (ack=201) ──────→│  "Got your 200, we're connected"
+  │════════ DATA ══════════│
+
+Why 3 steps not 2?
+  After SYN+SYN-ACK: client confirmed both directions work.
+  Server knows it can RECEIVE (got SYN) but not if it can SEND
+  (SYN-ACK might not have arrived). Final ACK from client confirms
+  server's SYN-ACK was received → server knows it can send. Done.
+
+ISN (Initial Sequence Number):
+  Random, not 0. Prevents old packets from previous connections
+  being confused as new. Also security (hard to predict/inject).
+
+
+SEQUENCE AND ACKNOWLEDGEMENT NUMBERS                              ★★★
+---------------------------------------
+Sequence number = byte number of FIRST byte in this segment
+ACK number      = NEXT byte the receiver expects
+
+  Client sends:
+    Segment 1: seq=100, "Hello" (5 bytes, covers bytes 100-104)
+    Segment 2: seq=105, "World" (5 bytes, covers bytes 105-109)
+
+  Server replies:
+    ACK=105 → "got up to 104, send me 105 next"
+    ACK=110 → "got up to 109, send me 110 next"
+
+PACKET LOSS — Fast Retransmit:
+  Client sends seq=100, 105, 110. Server gets 100✓, 105✗, 110✓
+  Server sends: ACK=105, ACK=105, ACK=105 (3 duplicate ACKs)
+  Client: 3 dup ACKs → retransmit seq=105 immediately (don't wait for timeout)
+  Server gets 105: ACK=115 (cumulative — has everything up to 114)
+
+
+FLOW CONTROL — SLIDING WINDOW                                     ★★★
+-------------------------------------
+Problem: fast sender overwhelms slow receiver's buffer → drops → waste.
+Solution: receiver tells sender its available buffer space (rwnd).
+
+TCP header has Window Size field:
+  Receiver: "I have 64KB buffer space available"
+  Sender: cannot send more than rwnd bytes unACKed
+
+As receiver processes data → buffer frees → advertises larger window
+As receiver falls behind → buffer fills → advertises smaller window
+Buffer full → window=0 → sender stops (zero window probe sent periodically)
+
+Sliding window:
+  Window = 3 segments. Send 1,2,3. Wait for ACKs.
+  ACK for 1 → window slides → can send 4.
+  ACK for 2,3 → window slides → can send 5,6.
+
+Flow control = receiver controls speed. Protects receiver's buffer.
+
+
+CONGESTION CONTROL                                                ★★★
+-------------------
+Problem: too many TCP connections sending at max → routers overwhelmed
+         → drops → retransmissions → more congestion → collapse.
+Solution: TCP reduces speed when it detects network congestion.
+
+MSS = Maximum Segment Size = max bytes in one segment's payload
+  Ethernet: MTU(1500) - IP header(20) - TCP header(20) = 1460 bytes
+  cwnd measured in units of MSS (segments) for simplicity.
+
+cwnd (congestion window) = how many segments can be in flight.
+Actual send rate = min(rwnd, cwnd) — smaller one controls.
+
+ssthresh (slow start threshold) = cwnd value where slow start stops.
+  Initially high (e.g. 65535 bytes). Updated when loss detected.
+
+PHASE 1 — SLOW START (exponential):
+  Start: cwnd = 1 MSS
+  Each RTT: cwnd doubles (1→2→4→8)
+  Stops when: cwnd hits ssthresh OR packet loss detected
+  Called "slow" because starts at 1, not at full speed.
+
+PHASE 2 — CONGESTION AVOIDANCE (linear):
+  After hitting ssthresh: cwnd += 1 per RTT (8→9→10→11...)
+  Careful probing — looking for network capacity limit.
+
+PHASE 3 — PACKET LOSS DETECTED (two cases):
+
+  Case A: 3 Duplicate ACKs (mild — network still working):
+    ssthresh = cwnd / 2
+    cwnd     = ssthresh     ← don't crash to 1
+    Fast Retransmit: retransmit lost segment immediately
+    Fast Recovery: resume Congestion Avoidance from new ssthresh
+    Mild response: network congested but not broken.
+
+  Case B: Timeout (severe — no ACKs at all):
+    ssthresh = cwnd / 2
+    cwnd     = 1 MSS        ← full crash back to 1
+    Restart Slow Start (but ssthresh is now lower)
+    Harsh response: network might be broken.
+
+With numbers (ssthresh starts at 8):
+  RTT 1: cwnd=1  → send 1  → cwnd=2   (slow start)
+  RTT 2: cwnd=2  → send 2  → cwnd=4   (slow start)
+  RTT 3: cwnd=4  → send 4  → cwnd=8   (slow start, hit ssthresh)
+  RTT 4: cwnd=8  → send 8  → cwnd=9   (congestion avoidance)
+  RTT 5: cwnd=9  → send 9  → cwnd=10
+  RTT 6: cwnd=10 → 3 dup ACKs → ssthresh=5, cwnd=5 (fast recovery)
+  RTT 7: cwnd=5  → send 5  → cwnd=6   (congestion avoidance resumes)
+
+FLOW CONTROL vs CONGESTION CONTROL:
+  Flow control:      receiver says "slow down, I'M overwhelmed"
+                     controlled by rwnd. Protects receiver buffer.
+  Congestion ctrl:   TCP detects "NETWORK is overwhelmed"
+                     controlled by cwnd. Protects routers/links.
+  Both active simultaneously. Send rate = min(rwnd, cwnd).
+
+
+TCP 4-WAY HANDSHAKE — CONNECTION TEARDOWN
+------------------------------------------
+Either side can initiate. Each side closes independently.
+
+CLIENT                    SERVER
+  │── FIN ───────────────→│  "I'm done sending"
+  │←─ ACK ────────────────│  "Got it. I might still have data to send"
+  │      [server sends remaining data]
+  │←─ FIN ────────────────│  "Now I'm done too"
+  │── ACK ───────────────→│  "OK, fully closed"
+  [Client enters TIME_WAIT]
+
+Why 4 steps not 3?
+  FIN = "I'm done SENDING" (not receiving).
+  Server might still have data → keeps sending after ACKing client's FIN.
+  Two independent half-closes. Each side closes when ready.
+
+TIME_WAIT = 2 * MSL (Maximum Segment Lifetime, ~60 seconds):
+  Client waits in case final ACK is lost.
+  Server would resend FIN. Client needs to be alive to ACK it again.
+
+
+TCP vs UDP — WHEN TO CHOOSE
+-----------------------------
+Use TCP:                          Use UDP:
+  Data must arrive correctly        Speed > reliability
+  Order matters                     Old data useless (gaming, video)
+  File transfer, web, email         Single query (DNS)
+  Database, SSH, FTP                VoIP, streaming
+  HTTP/HTTPS                        DHCP (no IP yet)
+                                    QUIC/HTTP3 (UDP + own reliability)
+
+Trick: UDP not always unreliable. QUIC builds reliability on top of UDP.
+       Gets UDP speed with TCP-like guarantees.
+
+
+ERROR DETECTION AND FLOW CONTROL — LAYER 2 vs LAYER 4
+-------------------------------------------------------
+Both Data Link (Layer 2) AND Transport (Layer 4) have error detection
+and flow control. Same concept, completely different scope.
+
+ERROR DETECTION:
+  Data Link (CRC):
+    Checks each frame on ONE hop (between directly connected devices).
+    CRC fails → frame dropped SILENTLY. No retransmission at Layer 2.
+    Ethernet recalculates CRC fresh at every hop.
+
+  TCP (Checksum):
+    Checks each segment END-TO-END (source app → destination app).
+    Fails or lost → TCP retransmits from original source.
+
+  Your Laptop ──[CRC]── Switch ──[CRC]── Router ──[CRC]── Server
+              └─ hop ─┘         └─ hop ─┘         └─ hop ─┘
+  ├──────────────── TCP checksum covers ALL of this ──────────────┤
+
+FLOW CONTROL:
+  Data Link (Ethernet 802.3x PAUSE frames):
+    Switch buffer filling up → sends PAUSE frame to connected device.
+    "Stop sending for X milliseconds."
+    Scope: one hop only (between two directly connected devices).
+
+  TCP (Sliding Window / rwnd):
+    Receiver's APPLICATION buffer controls sender speed end-to-end.
+    Scope: entire path from source app to destination app.
+
+WHY BOTH LAYERS HAVE THESE:
+  Layered design — each layer is self-contained, doesn't fully trust layer below.
+  Layer 2 catches: bit errors on ONE physical link.
+  Layer 4 catches: everything across full path (congestion drops, routing
+                   errors, errors that slipped past Layer 2 CRC).
+  Layer 2 flow ctrl: protects one switch buffer (local).
+  Layer 4 flow ctrl: protects receiver's APPLICATION buffer (global).
+
+  Like two security checks at airport:
+    Gate check (Layer 2) → catches obvious local problems
+    Destination country check (TCP) → final authority end-to-end
+
+COMPARISON TABLE:
+  Feature          Data Link (L2)           Transport/TCP (L4)
+  ─────────────────────────────────────────────────────────────
+  Error detection  CRC on each frame        Checksum on each segment
+  On failure       Drop silently (no retry) Retransmit from source
+  Flow control     PAUSE frames (802.3x)    Sliding window (rwnd)
+  Scope            One hop only             End-to-end entire path
+  Protects         Physical link integrity  Full application delivery
+
+
+QUICK REFERENCE
+---------------
+Transport layer  → delivers to correct APPLICATION via ports
+Port             → 16-bit number identifying an application
+Socket           → IP + Port = unique endpoint
+Connection       → 4-tuple: src IP, src port, dst IP, dst port
+UDP              → connectionless, 8-byte header, fire and forget
+TCP              → reliable, ordered, flow+congestion controlled
+3-way handshake  → SYN → SYN-ACK → ACK (both sides confirm send+receive)
+Why 3 not 2      → server needs final ACK to know its SYN-ACK arrived
+Sequence number  → byte number of first byte in segment
+ACK number       → next byte expected
+3 dup ACKs       → fast retransmit (don't wait for timeout)
+Flow control     → receiver controls via rwnd (protects receiver buffer)
+Sliding window   → sender limited to cwnd unACKed bytes at once
+MSS              → Maximum Segment Size = max DATA bytes per segment (1460B)
+cwnd             → congestion window (in units of MSS/segments)
+ssthresh         → threshold where slow start switches to CA
+Slow start       → cwnd doubles each RTT (exponential, starts at 1)
+Congestion avoid → cwnd +1 each RTT (linear, after ssthresh)
+3 dup ACKs loss  → ssthresh=cwnd/2, cwnd=ssthresh, fast recovery (mild)
+Timeout loss     → ssthresh=cwnd/2, cwnd=1, slow start (harsh)
+Flow vs Congestion → Flow=receiver overwhelmed, Congestion=network overwhelmed
+4-way teardown   → FIN→ACK→FIN→ACK (each side closes independently)
+TIME_WAIT        → 2*MSL, waits in case final ACK lost
+================================================================

@@ -1,0 +1,368 @@
+================================================================
+MODULE 14 — NETWORK PERFORMANCE
+================================================================
+
+PERFORMANCE METRICS                                              ★★★
+-------------------
+Bandwidth:    maximum capacity of a link. How wide the pipe is.
+              1 Gbps = pipe CAN carry 1 billion bits/sec. Potential, not reality.
+
+Throughput:   actual data rate achieved. Always ≤ bandwidth.
+              Reduced by: congestion, packet loss, protocol overhead, TCP slow start.
+
+Latency:      time for ONE packet to travel source → destination (one-way).
+
+RTT:          Round Trip Time. Latency there + back. ≈ latency × 2.
+              TCP uses RTT for: timeout calculations, congestion window growth.
+
+TTFB:         Time To First Byte. When browser receives first byte of response.
+              Includes: DNS + TCP handshake + TLS handshake + server processing + network.
+              High TTFB = slow server OR high latency.
+
+Jitter:       variation in latency between packets.
+              Packet 1: 10ms, Packet 2: 12ms, Packet 3: 8ms → jitter = ±4ms
+              File download: jitter irrelevant (buffered).
+              Video call / gaming: jitter = choppy audio, rubber-banding. Critical.
+
+Packet Loss:  % of packets that never arrive.
+              0% = perfect. 1% = TCP retransmits → throughput drops significantly.
+              5% = noticeable. 10%+ = unusable.
+              TCP handles loss (retransmit). UDP doesn't → app must handle.
+
+
+FOUR SOURCES OF LATENCY
+------------------------
+Total latency = propagation + transmission + processing + queuing
+
+1. PROPAGATION DELAY:
+   Time for signal to physically travel through medium.
+   Speed of light in fiber ≈ 200,000 km/s (2/3 of c).
+   Mumbai → New York = ~13,000 km → ~65ms minimum. PHYSICS. Cannot fix.
+
+2. TRANSMISSION DELAY:
+   Time to push all bits of packet onto the wire.
+   = packet_size / link_bandwidth
+   1500 bytes / 1 Gbps = 12 microseconds (negligible on fast links).
+   1500 bytes / 56 Kbps = 214 ms (significant on slow links).
+
+3. PROCESSING DELAY:
+   Time router reads header, looks up routing table, decides output port.
+   Modern routers: nanoseconds. Hardware accelerated. Usually negligible.
+
+4. QUEUING DELAY:
+   Time packet WAITS in router buffer when link is congested.
+   Most variable source. Can be 0ms or hundreds of ms.
+   Congestion → queue fills → all packets wait → high latency.
+   Kills real-time apps (gaming, video calls) even when throughput is fine.
+
+
+BUFFERBLOAT
+-----------
+Modern routers have large buffers to avoid dropping packets.
+When link is congested → packets queue in huge buffer instead of dropping.
+Latency spikes to hundreds of ms. Throughput stays same (just delayed).
+File download: fine (doesn't care about latency).
+Video call: unusable (real-time, 300ms latency = broken).
+Fix: AQM (Active Queue Management) — drops packets early to signal TCP
+     to slow down, keeping queue short and latency low.
+
+
+QoS — QUALITY OF SERVICE
+--------------------------
+Not all traffic equal. Routers prioritise certain types.
+  High priority:   VoIP, video calls → served first
+  Medium:          interactive browsing
+  Low priority:    file downloads, updates → can wait
+
+Implementation: DSCP field (6 bits) in IP header. Mark packets with priority.
+Routers honour DSCP markings → priority queue.
+Example: video call + game download on same link → QoS keeps call smooth.
+
+
+================================================================
+RATE LIMITING                                                    ★★★
+================================================================
+Limit requests a client can make per time window.
+Why: prevent abuse, DDoS protection, fair usage, cost control.
+
+
+ALGORITHM 1 — FIXED WINDOW COUNTER:
+  Divide time into fixed windows (e.g., 1 min). Count requests per window.
+  If count > limit → reject.
+
+  Simple. Low memory (one counter per user).
+  PROBLEM — Boundary Spike:
+    Limit = 100/min. User sends 100 at :59 (window 1, allowed).
+    Window resets. User sends 100 at :01 (window 2, allowed).
+    200 requests in 2 seconds. Both windows show 100. System tricked.
+
+
+ALGORITHM 2 — SLIDING WINDOW LOG:
+  Log TIMESTAMP of every request. On new request:
+    Remove timestamps older than window_size.
+    Count remaining. If ≥ limit → reject.
+
+  Accurate. No boundary spike.
+  PROBLEM: memory = O(requests per window per user). Huge at scale.
+
+
+ALGORITHM 3 — SLIDING WINDOW COUNTER:
+  Approximate sliding window using two fixed window counters.
+  effective_count = current_window_count + (prev_window_count × overlap_ratio)
+
+  Example: limit=100/min, 30s into current window (overlap = 70%):
+    effective = current + (prev × 0.7)
+    If effective ≥ 100 → reject.
+
+  Memory efficient O(1). Slightly approximate. Production choice.
+  Used in Redis-based rate limiters.
+
+
+ALGORITHM 4 — TOKEN BUCKET:
+  Bucket holds tokens. Tokens added at fixed rate (e.g., 10/sec). Max capacity.
+  Each request consumes 1 token. No tokens → reject.
+
+  ALLOWS BURST:
+    Idle 10 seconds → bucket fills to 100.
+    100 requests burst → all allowed (uses tokens).
+    Bucket empty → back to 10 req/sec rate.
+
+  Good for: APIs that allow occasional bursts but cap average rate.
+  Used by: AWS API Gateway, most REST API rate limiters.
+
+
+ALGORITHM 5 — LEAKY BUCKET:
+  Requests enter queue at ANY rate. Queue processed at FIXED CONSTANT rate.
+  Queue full → new requests DROPPED.
+  Output is ALWAYS smooth and constant. No bursts allowed.
+
+  Good for: traffic shaping, sending to downstream at steady rate.
+
+
+TOKEN BUCKET vs LEAKY BUCKET:
+  Feature           Token Bucket              Leaky Bucket
+  ──────────────────────────────────────────────────────────────
+  Bursts allowed    YES (up to bucket size)   NO (always constant output)
+  Output rate       Variable (up to max)      Always constant
+  Excess handling   Reject if no tokens       Queue, then drop if full
+  Good for          API rate limiting         Traffic shaping
+
+
+CONCURRENCY LIMITER:
+  Limits SIMULTANEOUS active requests, not rate over time.
+  "Max 10 requests processed at once."
+  Good for: protecting DB connections, thread pools, memory-heavy ops.
+  Rate limiter = requests per TIME. Concurrency = requests active RIGHT NOW.
+  Both used together in production.
+
+
+================================================================
+LOAD BALANCING                                                   ★★★
+================================================================
+Distribute incoming traffic across multiple servers.
+Single server has capacity limit → scale horizontally with LB.
+
+  Users → [Load Balancer] → Server 1
+                          → Server 2
+                          → Server 3
+
+
+L4 LOAD BALANCER:
+  Layer 4 (Transport). Sees only: src IP, dst IP, port.
+  Does NOT read packet content.
+  Creates TWO TCP connections: Client ↔ LB ↔ Backend.
+  Fast. Cannot route based on URL or headers.
+  Use when: raw speed, no content inspection needed.
+
+L7 LOAD BALANCER:
+  Layer 7 (Application). Reads HTTP content.
+  Routes based on: URL path, headers, cookies, host name.
+    /api/* → API server pool
+    /static/* → static file servers
+    api.company.com → API pool
+  SSL Termination: LB decrypts HTTPS, inspects, sends HTTP to backends.
+  Smarter. More overhead. Used by nginx, HAProxy, AWS ALB.
+
+
+LOAD BALANCING ALGORITHMS:
+
+Round Robin:
+  Equal rotation. S1 → S2 → S3 → S1...
+  Simple. Assumes equal server capacity and request weight.
+
+Weighted Round Robin:
+  Server 1 (weight 3) gets 3x traffic vs Server 2 (weight 1).
+  Use when servers have different hardware capacity.
+
+Least Connections:
+  New request → server with fewest active connections.
+  Best for variable-duration requests.
+  Long request on S1 → S1 accumulates connections → naturally avoids it.
+  Most common general-purpose algorithm.
+
+IP Hash (Sticky Sessions):
+  hash(client_IP) → always same server.
+  Use when: server stores session state in memory.
+  Problem: server fails → client session lost.
+  Better solution: store sessions in shared Redis → any server works.
+
+Random:
+  Random server each time. Works well at high volume (law of large numbers).
+
+HEALTH CHECKS:
+  LB polls each server: GET /health → expect 200 OK.
+  Fail 3× → server marked DOWN, removed from pool.
+  Pass checks → re-added.
+  Without: crashed server still receives 1/3 traffic → 1/3 users get errors.
+  With: LB detects, reroutes. Users may see one error then fine.
+
+
+================================================================
+CDN — CONTENT DELIVERY NETWORK                                   ★★★
+================================================================
+Distributed network of edge servers (PoPs) placed near users worldwide.
+Caches static content at edge. Reduces latency, origin server load, bandwidth.
+
+Without CDN: Mumbai server. NY user. 130ms latency per request.
+With CDN:    NY edge node. NY user. 1ms from cache.
+
+CDN caches:       static content — images, CSS, JS, fonts, videos, HTML.
+CDN doesn't cache: personalised API responses, user-specific dynamic data.
+
+
+CDN CACHE LIFECYCLE:
+  Cache miss (first request):
+    User → edge node → not cached → edge fetches from origin.
+    Edge caches with TTL. Serves user.
+
+  Cache hit (subsequent requests):
+    User → edge node → cached → serve instantly. Origin not contacted.
+
+  TTL expiry:
+    Cache entry expires (stale). Next request = miss → re-fetch.
+    Low TTL:  good for frequently changing content.
+    High TTL: good for stable files (logo, fonts).
+
+  Cache invalidation:
+    You update file on origin. TTL hasn't expired.
+    Users still get old version from CDN.
+    Solution 1: push purge command to CDN → clears entry everywhere.
+    Solution 2: versioned URLs → /logo_v2.png (new URL = new cache entry).
+
+
+★ ANYCAST vs GEODNS — ROUTING TO NEAREST LOCATION
+---------------------------------------------------
+BOTH achieve geographic routing. Different layers. Different mechanisms.
+
+ANYCAST:
+  Same IP address announced from MULTIPLE locations via BGP.
+  Google announces 8.8.8.8 from Mumbai, NY, Frankfurt, Singapore...
+  Each location tells internet via BGP: "I have 8.8.8.8, X hops away."
+  Your ISP's router: picks shortest BGP path → nearest location wins.
+  Routing happens at IP layer. DNS not involved.
+
+  User in Mumbai → packet → Mumbai instance of 8.8.8.8.
+  User in NY     → packet → NY instance of 8.8.8.8.
+  Same IP. Different physical machines. BGP routing handles it.
+
+  Used for: DNS servers (8.8.8.8, 1.1.1.1), Cloudflare's network,
+            DDoS protection, CDN edge routing.
+
+GEODNS:
+  DNS returns DIFFERENT IP based on requester's geographic location.
+  Authoritative DNS sees resolver's region → returns nearest server IP.
+
+  Indian resolver asks google.com → returns 142.250.77.x (Mumbai DC).
+  US resolver asks google.com → returns 172.217.1.x (US DC).
+
+  Works at DNS layer. You get a different IP per region.
+  Used for: google.com, YouTube, CDNs (AWS CloudFront), APIs.
+
+COMPARISON:
+                  Anycast                     GeoDNS
+  ────────────────────────────────────────────────────────────
+  Works at        IP routing (BGP)            DNS layer
+  Mechanism       Same IP, BGP picks closest  Different IPs per region
+  DNS involved    No                          Yes
+  Failover        Automatic (BGP reroutes)    Slow (TTL must expire)
+  Control         Less (BGP decides)          More (you choose per region)
+  Used for        DNS resolvers, DDoS shield  CDNs, Google, APIs
+
+
+★ DO YOU ALWAYS HIT A CDN?
+----------------------------
+NO. CDN = cached static content. Dynamic requests go to actual servers.
+
+GeoDNS/Anycast = routing mechanisms to nearest location.
+CDN edge node = what you reach IF content is cached.
+Load balancer = what you reach IF request needs actual server processing.
+
+WHAT ACTUALLY HAPPENS FOR DIFFERENT REQUESTS:
+
+google.com search (dynamic):
+  GeoDNS → nearest Google data center IP.
+  Request → Google's load balancer → backend search servers.
+  No CDN. Search is personalised/dynamic. Always hits real servers.
+
+google.com logo (static):
+  Served from nearest CDN edge node (cached).
+  Origin server not contacted after first request.
+
+YouTube video:
+  Metadata, recommendations: dynamic → actual YouTube servers.
+  Video file chunks: static → CDN edge nodes near you.
+
+Cloudflare-fronted website:
+  DNS → Cloudflare anycast IP (same IP, 300+ locations).
+  Request → nearest Cloudflare edge.
+  Cache hit → served from edge. Origin never contacted.
+  Cache miss or dynamic → Cloudflare forwards to origin server.
+
+FULL MENTAL MODEL:
+  "Nearest" routing has two layers:
+
+  Layer 1 — Get to nearest location (GeoDNS / Anycast):
+    Both get you physically close. BGP or DNS handles routing.
+
+  Layer 2 — What you reach at that location:
+    CDN edge → cached static: serve immediately.
+    CDN edge → not cached: forward to origin.
+    Load balancer → always forward to backend servers.
+    DNS resolver → answer your DNS query.
+    DDoS scrubber → filter, forward clean traffic.
+
+
+QUICK REFERENCE
+---------------
+Bandwidth        → pipe capacity (max possible)
+Throughput       → actual data rate (≤ bandwidth)
+Latency          → one-way travel time
+RTT              → round trip (latency × 2), used by TCP
+TTFB             → DNS + TCP + TLS + server + network time to first byte
+Jitter           → latency variation, kills real-time apps
+Packet loss      → TCP retransmits, UDP doesn't, 1% = significant drop
+Propagation      → physics, speed of light, can't fix
+Transmission     → packet_size/bandwidth, negligible on fast links
+Queuing          → most variable, caused by congestion, worst for real-time
+Bufferbloat      → large buffers → high queuing delay → latency spike
+QoS              → prioritise traffic types (DSCP field in IP header)
+Fixed window     → simple counter, boundary spike vulnerability
+Sliding log      → accurate, high memory, not production-scale
+Sliding counter  → approximate, memory efficient, production choice
+Token bucket     → allows burst then rate limits, API rate limiting
+Leaky bucket     → constant output, no burst, traffic shaping
+Concurrency      → limits simultaneous active requests (not rate)
+L4 LB            → IP/port only, fast, no content inspection
+L7 LB            → reads HTTP, URL/header routing, SSL termination
+Round robin      → equal rotation, simple
+Weighted RR      → proportional to server weight/capacity
+Least conn       → fewest active connections, best general choice
+IP hash          → same client always same server (sticky sessions)
+Health check     → LB polls /health, removes failed servers
+CDN              → static content cached at edge nodes near users
+TTL (CDN)        → how long edge caches content before re-fetching
+Cache invalidation → purge CDN before TTL, or use versioned URLs
+Anycast          → same IP multiple locations, BGP routes to nearest
+GeoDNS           → different IP per region returned by DNS
+CDN ≠ always     → static = CDN, dynamic = actual servers
+================================================================

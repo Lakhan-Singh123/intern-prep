@@ -1,0 +1,337 @@
+================================================================
+MODULE 13 — WIRELESS NETWORKING
+================================================================
+
+WIRELESS BASICS
+---------------
+Wi-Fi uses radio waves — electromagnetic signals broadcast in all directions.
+
+Key differences from wired:
+  Wired:    signal travels only down cable → point-to-point
+  Wireless: signal radiates outward → everyone nearby receives it
+
+Consequences:
+  Shared medium (like a hub, not a switch)
+  → collisions possible → need CSMA/CA (not CSMA/CD)
+
+  Anyone nearby can receive your frames
+  → encryption is not optional — essential
+  → reason WEP → WPA → WPA2 → WPA3 evolution exists
+
+AP / WAP — ACCESS POINT:
+  An Access Point (AP / WAP) is a hardware device that bridges
+  wired internet into wireless radio waves.
+  Your Jio router is a COMBO device: modem + router + WAP built in.
+  Your phone/laptop does NOT have a WAP — it has a wireless receiver
+  (NIC) that tunes into the AP's radio signal. Air = invisible cable.
+
+  Standalone AP vs Combo router:
+    Standalone AP:  only converts wired → wireless. No DHCP, no routing.
+                    Used in offices to extend Wi-Fi coverage.
+    Combo router:   AP + DHCP server + NAT + firewall in one box.
+                    Your home Jio/Airtel device is this.
+    Key point: a standalone AP cannot assign IP addresses. The router
+               (upstream) handles DHCP. AP just handles radio.
+
+PHONE HOTSPOT — PHONE AS WAP:
+  Turning on hotspot transforms your phone into a temporary WAP.
+  Phone now does: receive mobile data + broadcast Wi-Fi simultaneously.
+
+  Why hotspot is less efficient than a router:
+    Tiny antennas → weaker signal, less range
+    Single processor handles mobile data + Wi-Fi + your own apps
+    Phone heats up → thermal throttling → speed drops
+    Mobile OS caps connected device count (usually 5-10)
+    Speed penalty: data comes in via mobile tower, converted to Wi-Fi
+                   (two radio operations instead of one wired input)
+
+
+2.4 GHz vs 5 GHz                                                 ★★
+-----------------
+                    2.4 GHz              5 GHz
+  ───────────────────────────────────────────────────────
+  Wavelength        Longer               Shorter
+  Range             Further (~45m)       Shorter (~15m)
+  Wall penetration  Better               Worse
+  Speed             Lower (~600 Mbps)    Higher (~3.5 Gbps)
+  Congestion        High (Bluetooth,     Low (more channels,
+                    microwaves, legacy)  fewer devices)
+  Non-overlap ch    3 (ch 1, 6, 11)     24+
+  Best for          Coverage, range      Speed, nearby use
+
+Wi-Fi 6E: adds 6 GHz band — fastest, least congested, shortest range.
+
+
+IEEE 802.11 STANDARDS
+----------------------
+Standard     Wi-Fi name  Frequency     Max speed   Key feature
+────────────────────────────────────────────────────────────────
+802.11n      Wi-Fi 4     2.4 + 5 GHz   600 Mbps   MIMO
+802.11ac     Wi-Fi 5     5 GHz         3.5 Gbps   MU-MIMO
+802.11ax     Wi-Fi 6     2.4 + 5 GHz   9.6 Gbps   OFDMA
+802.11ax     Wi-Fi 6E    + 6 GHz       9.6 Gbps   New 6 GHz band
+802.11be     Wi-Fi 7     2.4+5+6 GHz   46 Gbps    Multi-link
+
+GHz — WHAT IT MEANS:
+  GHz = Gigahertz = billions of wave cycles per second.
+  Higher frequency = more cycles per second = more data per second = faster.
+  But higher frequency = shorter wavelength = less wall penetration = less range.
+  This is the fundamental 2.4 vs 5 GHz tradeoff.
+
+OFDMA (Wi-Fi 6):
+  Previous Wi-Fi (1-5): one delivery truck serves one device at a time.
+    Even if truck has space, it waits until one device is fully served.
+    In crowded networks → devices queue → congestion.
+
+  OFDMA: splits the truck into compartments.
+    Multiple devices served simultaneously in ONE transmission.
+    Each device gets its own "compartment" (sub-channel).
+    Empty space in signal is no longer wasted.
+    Does NOT shrink your data — it just stops wasting signal capacity.
+    Critical for dense environments (offices, stadiums, apartments).
+
+  MU-MIMO (Wi-Fi 5): multiple antennas → serve multiple devices.
+  OFDMA (Wi-Fi 6): splits channel → even more efficient use of spectrum.
+  Both together in Wi-Fi 6 = significant improvement in crowded networks.
+
+
+WI-FI JOINING FLOW
+-------------------
+STEP 1 — SCANNING:
+  Passive: device listens for BEACON frames.
+    AP broadcasts beacon every ~100ms: "I'm SSID=HomeWifi + capabilities"
+  Active: device broadcasts PROBE REQUEST → APs reply with PROBE RESPONSE.
+
+STEP 2 — AUTHENTICATION (formality):
+  Device → AP: Authentication Request
+  AP → Device: Authentication Response (OK)
+  Just a procedural exchange. Real security comes next.
+
+STEP 3 — ASSOCIATION:
+  Device → AP: Association Request (capabilities, supported rates)
+  AP → Device: Association Response + assigns Association ID (AID)
+  Device is associated but NOT yet authenticated for data.
+
+STEP 4 — SECURITY HANDSHAKE:
+  WPA2 Personal: 4-way handshake → derive session keys (PTK).
+  WPA2 Enterprise: 802.1X with RADIUS server → individual user auth.
+
+STEP 5 — DHCP:
+  Get IP address, subnet mask, gateway, DNS (DORA process).
+
+STEP 6 — Connected. All data flows encrypted.
+
+
+WI-FI SECURITY STANDARDS                                         ★★★
+------------------------
+
+WEP — Wired Equivalent Privacy (1997): BROKEN, NEVER USE
+  RC4 encryption, 40-bit or 104-bit key.
+  Fatal flaw: IV (Initialization Vector) reuse.
+    IV = 24-bit value prepended to key per packet.
+    Only 2^24 = 16M possibilities → quickly repeats on busy network.
+    Same IV + same key = same keystream → XOR reveals plaintext.
+  Cracked in minutes with Aircrack-ng.
+  Never use, even for IoT.
+
+WPA — Wi-Fi Protected Access (2003): DEPRECATED
+  Emergency patch while WPA2 was in development.
+  TKIP (Temporal Key Integrity Protocol) — still RC4 underneath.
+  Added per-packet key mixing to fix IV reuse. Still weak.
+  Deprecated. Don't use.
+
+WPA2 — Wi-Fi Protected Access 2 (2004): CURRENT STANDARD
+  Replaced RC4 with AES-CCMP (strong symmetric encryption).
+
+  Two modes:
+    Personal (PSK — Pre-Shared Key):
+      One password for everyone. Home/small office.
+      Weakness: captured 4-way handshake → offline brute-force attack.
+
+    Enterprise (802.1X):
+      Individual credentials per user. RADIUS server authenticates.
+      Compromised employee → revoke that user only, not everyone.
+
+  KRACK attack (2017): forced nonce reuse in 4-way handshake.
+  Broke WPA2 encryption. Patched via software updates.
+  Fully patched devices are safe.
+
+WPA3 — Latest Standard (2018):
+  Key improvement: SAE (Simultaneous Authentication of Equals).
+    Replaces PSK. DH-based handshake.
+    WPA2 flaw: capture handshake → brute-force offline.
+    SAE fix: each auth attempt requires live interaction with AP.
+             Can't brute-force captured data. Must try each guess live.
+             AP rate-limits → practically impossible.
+
+  Forward secrecy: fresh keys each session.
+    Password discovered later → past sessions can't be decrypted.
+
+  Protected Management Frames (PMF): mandatory.
+    Prevents deauthentication attacks.
+
+  192-bit security mode for enterprise (government/banking).
+
+
+WPA2 4-WAY HANDSHAKE                                             ★★★
+--------------------
+Derives unique session key from shared password without sending password over air.
+
+PRE-REQUISITE — PMK (Pairwise Master Key):
+  PMK = PBKDF2(password, SSID, 4096 iterations) → 256-bit key
+  Both device and AP compute this independently. Never transmitted.
+  SSID matters: same password on different SSIDs = different PMK.
+  Attacker needs BOTH password AND SSID to precompute offline attacks.
+
+4-WAY HANDSHAKE:
+
+  AP                                        CLIENT
+   │── Msg 1: ANonce ───────────────────────→│
+   │   (AP's random nonce)                   │
+   │                  Client computes PTK:   │
+   │                  PTK = PRF(PMK +        │
+   │                    ANonce + SNonce +    │
+   │                    AP_MAC + Client_MAC) │
+   │                                         │
+   │←─ Msg 2: SNonce + MIC ─────────────────│
+   │   (Client's nonce + integrity check)    │
+   │   AP computes same PTK → identical ✓   │
+   │                                         │
+   │── Msg 3: GTK + MIC ───────────────────→│
+   │   (Group Temporal Key, encrypted w/PTK) │
+   │                                         │
+   │←─ Msg 4: ACK ──────────────────────────│
+   │                                         │
+   Both have PTK. All data encrypted with PTK.
+
+PTK (Pairwise Transient Key): actual session encryption key.
+GTK (Group Temporal Key): for broadcast/multicast (shared by all devices on AP).
+
+Why 4 messages:
+  Proves both sides know PMK without revealing it.
+  Derives fresh PTK unique to this session + these MACs.
+  Exchanges GTK for broadcast traffic.
+  MIC verifies each message wasn't tampered.
+
+
+CSMA/CA — BRIEF (covered fully in Module 3)
+--------------------------------------------
+Can't detect collision while transmitting on radio → must AVOID.
+  1. Sense channel — is it free?
+  2. If free → wait ADDITIONAL random backoff anyway
+  3. Transmit
+  4. Wait for ACK → no ACK = collision assumed → increase backoff, retry
+
+Hidden node problem:
+  A and C both connected to AP (B). A can't hear C.
+  Both sense channel free → both transmit → collision at AP.
+  Solution: RTS/CTS
+    A sends RTS → B sends CTS (heard by C too) → C knows channel busy.
+
+
+PUBLIC WI-FI — SECURITY THREATS                                  ★★★
+-------------------------------
+
+ATTACK 1 — PACKET SNIFFING:
+  Wi-Fi shared medium. Open networks have zero encryption.
+  Attacker: Wireshark in monitor mode → captures all frames.
+  Sees: HTTP traffic, DNS queries, cookies, metadata.
+  Cannot see: HTTPS content (end-to-end encrypted).
+  Protection: use HTTPS always, VPN encrypts everything.
+
+ATTACK 2 — EVIL TWIN AP:
+  Attacker creates fake AP with SAME SSID as legitimate network.
+  Sets higher signal strength → devices auto-connect to attacker.
+
+    "CafeWifi" (real AP, 60% signal)
+    "CafeWifi" (evil twin, 90% signal) ← device connects here
+
+  How attacker gets the SSID:
+    Passive — no hacking needed. APs broadcast SSID in beacon frames
+    every ~100ms. Attacker just listens. SSID is always public.
+
+  How attacker makes evil twin convincing:
+    Also clones the BSSID (AP's MAC address).
+    Device now sees two identical SSIDs + identical MACs.
+    Higher signal wins → device connects to evil twin.
+
+  Attacker = full MITM. All traffic flows through them.
+  Open networks: trivially easy (no password needed to clone).
+  Password networks: attacker who knows password can fully impersonate.
+
+  Protection:
+    HTTPS: cert mismatch → browser warning → MITM detected.
+    VPN: encrypted tunnel before data leaves device → attacker sees nothing.
+    Don't auto-connect to open/saved networks in public places.
+
+ATTACK 3 — DEAUTHENTICATION ATTACK:
+  WPA2: 802.11 management frames (deauth, disassoc) are UNENCRYPTED
+        and UNAUTHENTICATED. Anyone can send them. No verification.
+
+  Attack flow:
+    1. Attacker sends fake deauth frame to victim: "AP says: disconnect."
+    2. Victim's device disconnects from real AP.
+    3. Victim's device automatically tries to reconnect to real AP.
+    4. During reconnection: 4-way handshake happens over the air.
+    5. Attacker captures (sniffs) the 4-way handshake frames.
+
+  What attacker captures vs what they get:
+    Captures:  ANonce, SNonce, MIC, MACs — the handshake exchange.
+    Does NOT get: PTK (session key) — never transmitted.
+    Does NOT get: password in plain text.
+    Gets:      enough data to run OFFLINE brute-force attack.
+               "Try password='abc123' → compute PMK → compute PTK →
+                verify MIC → matches? → found password."
+    Weakness:  if password is weak/common → cracked quickly.
+               Strong password → brute force takes years.
+
+  Often combined with evil twin:
+    Deauth victim from real AP → victim connects to evil twin
+    → attacker gets full MITM position without needing to crack anything.
+
+  WPA3: PMF mandatory → deauth frames authenticated → fake ones rejected.
+  WPA2: PMF optional, must be enabled on router to protect.
+
+COMBINED PROTECTION ON PUBLIC WI-FI:
+  HTTPS + VPN covers all three attacks:
+    Sniffing → VPN/HTTPS encrypts contents
+    Evil twin → cert verification + VPN tunnel
+    Deauth → WPA3 PMF or just use VPN (content still encrypted)
+
+
+QUICK REFERENCE
+---------------
+AP/WAP           → hardware that converts wired internet to Wi-Fi radio
+Combo router     → AP + DHCP + NAT + firewall in one box (home Jio device)
+Standalone AP    → only radio, no DHCP — upstream router handles IP assignment
+Phone hotspot    → phone becomes temporary WAP, less efficient (heat, antennas, dual radio)
+GHz              → frequency (wave cycles/sec). Higher = faster but less range/penetration
+2.4 GHz          → longer range, wall penetration, slower, congested
+5 GHz            → shorter range, faster, less congested
+Wi-Fi 4/5/6      → 802.11n/ac/ax, know speeds and bands
+OFDMA            → Wi-Fi 6, splits channel into compartments, serves multiple devices at once
+                   doesn't shrink data, stops wasting empty signal space
+MU-MIMO          → Wi-Fi 5, multiple antennas, serve multiple devices
+Joining flow     → Scan → Auth → Associate → Security handshake → DHCP
+Beacon frame     → AP broadcasts SSID + capabilities every ~100ms (public, always visible)
+WEP              → broken, IV reuse, cracked in minutes, never use
+WPA              → transitional, TKIP/RC4, deprecated
+WPA2             → AES-CCMP, PSK (home) or 802.1X (enterprise), current
+WPA3             → SAE (no offline brute force), forward secrecy, PMF mandatory
+PMK              → derived from password + SSID, both sides compute independently
+PTK              → session encryption key, derived in 4-way handshake, unique per session
+GTK              → group key for broadcast/multicast traffic
+4-way handshake  → proves both know PMK, derives PTK, password never sent over air
+KRACK            → WPA2 nonce reuse attack, patched in software updates
+SAE              → WPA3 handshake, no offline brute force, live interaction required
+PMF              → Protected Management Frames, prevents deauth attacks (WPA3 mandatory)
+CSMA/CA          → avoid collisions on radio, random backoff + ACK required
+Hidden node      → A and C can't hear each other, RTS/CTS solves
+Packet sniffing  → open networks, Wireshark, HTTPS/VPN protects
+Evil twin        → fake AP clones SSID + BSSID, higher signal, MITM
+                   SSID stolen passively from beacon frames (always broadcast)
+                   HTTPS cert check + VPN protects
+Deauth attack    → fake unencrypted deauth frame → victim reconnects → handshake captured
+                   attacker gets handshake data (not PTK) → offline brute force password
+                   WPA3 PMF prevents (deauth frames now authenticated)
+================================================================

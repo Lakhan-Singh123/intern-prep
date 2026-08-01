@@ -1,0 +1,271 @@
+================================================================
+MODULE 10 — SWITCHING TECHNIQUES
+================================================================
+
+THE CORE QUESTION
+-----------------
+When you send data from A to B across a network with many intermediate
+nodes — how do you actually move it through?
+Three historical answers: circuit switching, message switching, packet switching.
+
+
+CIRCUIT SWITCHING
+-----------------
+A dedicated physical path is reserved from sender to receiver
+for the entire duration of communication.
+
+  A ──── Switch 1 ──── Switch 2 ──── Switch 3 ──── B
+         [dedicated path, fully reserved for A-B]
+
+Phases:
+  1. Setup   → path established before any data flows
+  2. Transfer → data flows on reserved path
+  3. Teardown → path released after communication ends
+
+Properties:
+  Guaranteed bandwidth    → no sharing, no congestion on path
+  Constant latency        → fixed path, no queuing
+  Wasteful                → silence/idle still holds reserved path
+  No setup = no data      → must establish path first
+  Link fails = broken     → entire call drops
+
+Example: PSTN (old telephone network), landline calls
+
+Why not for internet:
+  Billions of users → billions of dedicated paths → impossible to scale.
+  Most internet traffic is bursty — circuit sits idle most of the time.
+
+
+MESSAGE SWITCHING
+-----------------
+No dedicated path. Each node stores the ENTIRE message,
+waits for outgoing link to be free, then forwards.
+
+  A → [Node 1] → [Node 2] → [Node 3] → B
+        store       store       store
+       forward     forward     forward
+       whole msg   whole msg   whole msg
+
+Properties:
+  No dedicated path → links shared efficiently
+  Store-and-forward  → each node holds full message temporarily
+  High latency       → message waits at multiple hops
+  Huge storage needed → each node must store full messages
+  One large message blocks link for entire duration
+
+Example: telegraph networks (1800s), old email store-forward
+Status: OBSOLETE — replaced by packet switching
+
+
+PACKET SWITCHING                                                  ★★
+-----------------
+Break data into small packets. Each packet routed independently.
+Reassembled at destination.
+
+  "Hello, how are you?" → broken into:
+  [Pkt 1: header + "Hello,"]
+  [Pkt 2: header + " how"]
+  [Pkt 3: header + " are you?"]
+
+  Each packet: source, destination, sequence number, data.
+  Each packet may take different path. Reassembled at destination.
+
+Properties:
+  No dedicated path     → links shared by many users
+  No wasted capacity    → link busy = real data, not idle reservation
+  Resilient             → packets reroute around failures
+  Scalable              → billions of devices on same infrastructure
+  Variable latency      → packets may queue at congested routers
+  Out-of-order possible → TCP handles reassembly
+
+Example: Internet (IP), every modern network
+
+
+TWO TYPES OF PACKET SWITCHING
+-------------------------------
+
+DATAGRAM SWITCHING (Connectionless):
+  Each packet treated completely independently.
+  No pre-established path. No state in routers.
+  Router reads destination IP → makes routing decision per packet.
+  Different packets of same message can take different paths.
+
+  Pkt 1: R1 → R2 → R4
+  Pkt 2: R1 → R3 → R4  ← routing table changed, took different path
+  Pkt 3: R1 → R2 → R4
+
+  Flexible, resilient, scales well.
+  Used by: IP, UDP
+
+VIRTUAL CIRCUIT SWITCHING (Connection-oriented):
+  Setup phase first → logical path established → all packets follow it.
+  Packets tagged with circuit ID (not full destination address).
+  State maintained in network nodes about the circuit.
+
+  Step 1: Setup → path R1→R2→R4 established, circuit ID = 5
+  Step 2: All packets carry "circuit 5" tag
+          Routers just forward along pre-established path
+  Step 3: Teardown → circuit released
+
+  NOT truly circuit switching — no dedicated physical wires.
+  Just a logical/virtual path over shared links.
+  More predictable than datagram. Less flexible.
+  Used by: ATM, Frame Relay (legacy)
+
+
+★ CONNECTION-ORIENTED vs CONNECTIONLESS
+-----------------------------------------
+Both use packet switching. Key difference is whether a logical
+connection/state is established before data flows.
+
+CONNECTIONLESS (Datagram):
+  No setup phase. Just send packets.
+  Each packet carries full destination address.
+  Network nodes (routers) keep NO state about your "session".
+  Packets can arrive out of order or not at all.
+  No guarantee of delivery.
+  Fast — no handshake overhead.
+
+  Examples: IP (network layer), UDP (transport layer)
+
+  IP packet: carries full src + dst IP every time.
+  Router: looks at dst IP → routes → forgets. No memory of packet.
+
+CONNECTION-ORIENTED (Virtual Circuit / TCP):
+  Setup phase first (handshake).
+  Logical connection established. State maintained.
+  Packets follow ordered, tracked flow.
+  Delivery guaranteed (either by network or by endpoint).
+  More overhead but reliable.
+
+  Examples at network layer: ATM, X.25 (legacy virtual circuits)
+  Example at transport layer: TCP (connection-oriented over connectionless IP)
+
+KEY INSIGHT — TCP over IP:
+  IP layer = CONNECTIONLESS (datagram). Each packet routed independently.
+  TCP layer = CONNECTION-ORIENTED (3-way handshake, state, sequence numbers).
+
+  How? TCP maintains connection STATE at the ENDPOINTS (your device + server).
+  The network (IP) still routes each packet independently — no state in routers.
+  TCP at endpoint tracks: sequence numbers, ACKs, buffers, retransmit timers.
+
+  Virtual Circuit (ATM): state maintained IN THE NETWORK NODES (switches).
+  TCP: state maintained only at ENDPOINTS. Network stays stateless.
+
+  This is the internet's design philosophy:
+    "Keep the network dumb and fast (IP/datagram)."
+    "Put intelligence at the edges (TCP at endpoints)."
+
+COMPARISON:
+  Feature              Connectionless (IP/UDP)    Connection-Oriented (TCP/VC)
+  ────────────────────────────────────────────────────────────────────────────
+  Setup phase          No                         Yes (handshake)
+  State in network     No                         TCP: no / VC: yes
+  State at endpoints   No (UDP) / Yes (TCP)       Yes
+  Packet addressing    Full dst address each pkt   Circuit ID (VC) / Full (TCP)
+  Path                 Different per packet        Same (VC) / Varies (TCP/IP)
+  Order guaranteed     No                         Yes (TCP)
+  Delivery guaranteed  No                         Yes (TCP) / Yes (VC)
+  Overhead             Low                        Higher (handshake + state)
+  Resilient            Yes (reroute)              TCP yes / VC: path fails=broken
+  Examples             IP, UDP                    TCP, ATM, X.25
+
+
+MPLS — MULTI-PROTOCOL LABEL SWITCHING                            ★★
+--------------------------------------
+Problem: core routers doing IP longest prefix match on
+millions of entries at line speed → bottleneck.
+
+MPLS solution: add a short label (20 bits) at network edge.
+Core routers just swap labels — no IP lookup needed.
+
+Roles:
+  LER (Label Edge Router) → entry/exit points. Adds or removes labels.
+  LSR (Label Switch Router) → core routers. Only swap labels.
+
+How it works:
+  1. Packet enters MPLS network at Ingress LER
+  2. LER reads destination IP ONCE → decides label (e.g. label 42)
+  3. Label added between Layer 2 and Layer 3 header ("Layer 2.5")
+  4. Core LSRs: read label → swap → forward (O(1) exact match)
+  5. Packet exits at Egress LER → label removed → normal IP packet
+
+  [Ethernet header][MPLS Label][IP header][Data]
+
+LSR lookup table (tiny, exact match):
+  Incoming Label | Outgoing Label | Output Port
+  42             | 17             | Port 3
+  17             | 55             | Port 7
+  55             | 8              | Port 2
+
+Train ticket analogy:
+  Entry station gives you token 42.
+  Each intermediate station: "token 42? swap for 17, go platform 3"
+  Nobody re-reads your destination. Just swap tokens. Fast.
+
+Why faster:
+  IP lookup: 32-bit address, longest prefix match, huge table → slow
+  MPLS lookup: 20-bit label, exact match, tiny table → fast
+
+Additional benefits:
+  Traffic Engineering: manually control which path traffic takes.
+    "Send video via high-bandwidth link even if not shortest."
+    "Send voice via low-latency link."
+    ISPs use this to load-balance backbone, avoid congestion.
+
+  MPLS VPNs: labels can stack (Russian dolls).
+    Outer label: routing through MPLS backbone.
+    Inner label: which customer VPN this belongs to.
+    Many enterprise customers share same ISP backbone,
+    traffic kept separate by inner VPN label.
+
+  Fast Reroute: pre-calculated backup paths.
+    Link fails → switches to backup in under 50ms.
+
+Used by: ISP backbone networks. Invisible to end users.
+
+
+CIRCUIT vs MESSAGE vs PACKET — FULL COMPARISON
+------------------------------------------------
+Feature           Circuit           Message           Packet
+──────────────────────────────────────────────────────────────────
+Dedicated path    Yes               No                No
+Setup required    Yes               No                No
+Resource use      Wasteful(reserved) Efficient         Efficient
+Latency           Low, constant     High(store/fwd)   Variable
+Congestion        No (reserved)     Queue at nodes    Queue at routers
+Storage needed    No                Yes (full message) No (just buffer)
+Out-of-order      Impossible        Impossible        Possible (datagram)
+Failure recovery  Path breaks=dead  Reroute next hop  Auto-reroute
+Best for          Voice calls       Telegraph(obsolete) Data/internet
+Example           PSTN              Old telegraph      IP/Internet
+
+
+WHY INTERNET USES PACKET NOT CIRCUIT SWITCHING
+-----------------------------------------------
+Even for real-time video calls:
+  Scale: billions of users → billions of dedicated paths impossible.
+  Efficiency: video has pauses/silence → circuit wastes reserved bandwidth.
+  Resilience: packet auto-reroutes failures. Circuit breaks = call drops.
+  Modern fix: UDP + jitter buffers + WebRTC handle variable latency.
+              QoS on routers prioritises voice/video packets.
+              No need for physical circuit reservation.
+
+
+QUICK REFERENCE
+---------------
+Circuit switching    → dedicated path reserved end-to-end, PSTN, wasteful
+Message switching    → store full message, forward when free, obsolete
+Packet switching     → data in packets, each routed independently, internet
+Datagram             → connectionless, each packet independent, IP/UDP
+Virtual circuit      → path pre-set, packets follow it, circuit ID, ATM
+Connectionless       → no setup, no state in network, each packet standalone
+Connection-oriented  → setup phase, state maintained, ordered delivery
+TCP over IP          → IP = connectionless, TCP = connection-oriented at endpoints
+                       Network stays dumb, intelligence at edges
+MPLS                 → labels on packets, core routers swap labels not IP lookup
+LER                  → adds/removes labels at MPLS network edge
+LSR                  → core router, only swaps labels (fast exact match)
+MPLS traffic eng     → manually control paths, load-balance backbone
+MPLS VPN             → stacked labels, multiple customers on shared backbone
+================================================================

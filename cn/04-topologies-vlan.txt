@@ -1,0 +1,209 @@
+================================================================
+MODULE 4 — NETWORK TOPOLOGIES AND VLANs
+================================================================
+
+NETWORK TOPOLOGIES
+------------------
+How devices are physically arranged and connected.
+
+BUS
+  All devices on one shared cable.
+  One break = entire network down. One transmit at a time.
+  Nobody uses this anymore.
+
+RING
+  Each device connects to exactly two others, forming a circle.
+  Token passing — only token holder can transmit (no collisions).
+  One failure = ring breaks. Used in old Token Ring networks.
+
+STAR (most common today)
+  All devices connect to a central switch.
+  One device fails → only that device affected.
+  Central switch fails → entire network down (single point of failure).
+  Used in every modern office and home network.
+
+MESH
+  Every device connects to every other device.
+  Maximum redundancy — any link fails, data reroutes.
+  Full mesh: n(n-1)/2 connections — very expensive.
+  Partial mesh: compromise between cost and redundancy.
+  Used in backbone networks, critical infrastructure.
+
+TREE (Hierarchical Star)
+  Stars connected to stars. Three layers:
+  Core → Distribution → Access
+  Used in enterprises. Scalable — add branches anywhere.
+  Higher-level switch fails → entire branch below goes down.
+
+HYBRID
+  Combination of topologies. Real-world networks are always hybrid.
+
+
+PHYSICAL vs LOGICAL TOPOLOGY
+------------------------------
+Physical topology → how devices are actually physically wired.
+Logical topology  → how data actually flows.
+
+These can differ:
+  Hub-based network:
+    Physical = Star (all wires go to hub in center)
+    Logical  = Bus (hub broadcasts to everyone = shared medium)
+
+  Switch-based network:
+    Physical = Star
+    Logical  = Star (each device gets dedicated bandwidth — no sharing)
+
+
+ETHERNET SWITCHING — MAC LEARNING
+-----------------------------------
+Switch builds MAC table by watching normal traffic:
+
+  Step 1: Frame arrives → switch reads SOURCE MAC → records MAC + port
+  Step 2: Switch reads DESTINATION MAC → looks up port
+  Step 3: Found → send to that port only
+          Not found → FLOOD to all ports, wait to learn
+
+MAC table entries age out (~5 min). If device moves to new port,
+old entry expires and switch relearns from new traffic.
+
+
+VLANs — VIRTUAL LANs
+----------------------
+Problem VLANs solve:
+  Large office, all departments on same physical switch →
+  security risk (anyone can sniff traffic) + broadcast waste
+  + expensive to physically separate
+
+VLAN = logically divides ONE physical network into isolated virtual networks.
+Traffic between VLANs is completely blocked at Layer 2.
+
+  Physical reality:           Logical reality:
+  One switch, all devices     VLAN 10: Engineering (isolated)
+                              VLAN 20: HR (isolated)
+                              VLAN 30: Finance (isolated)
+
+Benefits:
+  Security   → VLAN 20 traffic invisible to VLAN 10 devices
+  Efficiency → broadcasts stay within one VLAN, don't flood others
+  Cost       → no need for separate physical switches per department
+
+
+HOW SWITCH PORTS WORK PHYSICALLY
+----------------------------------
+Ports = physical holes (RJ45 sockets) on the switch.
+You plug an Ethernet cable into a port. That connects a device.
+
+  Port 1 ──── cable ──── Engineering Laptop
+  Port 2 ──── cable ──── Engineering Laptop
+  Port 3 ──── cable ──── HR Laptop
+  Port 8 ──── cable ──── Router (internet gateway)
+
+Admin configures each port: which VLAN it belongs to + access or trunk.
+
+
+ACCESS PORT vs TRUNK PORT
+--------------------------
+Access Port:
+  → connects to END DEVICES (laptops, phones, printers)
+  → assigned to ONE VLAN only
+  → TWO jobs:
+      1. FILTER: blocks all other VLANs (frame from wrong VLAN = dropped)
+      2. TRANSLATE: strips VLAN tag outgoing, adds VLAN tag incoming
+         (end devices don't understand 802.1Q tags — they see normal frames)
+
+Trunk Port:
+  → connects SWITCH to SWITCH or SWITCH to ROUTER
+  → carries ALL VLANs simultaneously
+  → frames are TAGGED with VLAN ID (802.1Q tag — 4 bytes)
+  → receiving switch reads tag to know which VLAN the frame belongs to
+
+Why tags on trunk? Without tag, receiving switch can't know which VLAN
+the frame belongs to — trunk port carries multiple VLANs on same wire.
+Within one switch, no tag needed (switch knows from port config).
+Between switches, tag required.
+
+802.1Q Tag:
+  Normal frame: [MAC dst | MAC src | Type | Data | CRC]
+  Tagged frame: [MAC dst | MAC src | 802.1Q Tag | Type | Data | CRC]
+                                    └─ VLAN ID ─┘ (12 bits = up to 4094 VLANs)
+
+
+★ VLAN PHYSICAL FLOW — REAL EXAMPLE
+--------------------------------------
+Office setup:
+  Port 1 = VLAN 10 (access) ← Rohan's laptop (Engineering)
+  Port 2 = VLAN 10 (access) ← Priya's laptop (Engineering)
+  Port 3 = VLAN 20 (access) ← Sneha's laptop (HR)
+  Port 8 = Trunk            ← Jio Router
+
+CASE 1: Rohan → Priya (same VLAN 10):
+  Rohan sends untagged frame → Port 1
+  Switch: Port 1 = VLAN 10 → internally marks VLAN 10
+  Destination MAC → Port 2, also VLAN 10 → ALLOWED
+  Strip marking → send untagged out Port 2 → Priya receives ✓
+
+CASE 2: Rohan → Sneha (different VLAN):
+  Rohan sends frame → Port 1
+  Switch: VLAN 10. Destination → Port 3 (VLAN 20)
+  VLAN mismatch → frame DROPPED. Sneha receives nothing ✗
+
+CASE 3: Rohan → google.com (through Jio Router):
+  Rohan sends untagged frame → Port 1
+  Switch: VLAN 10. Destination → Port 8 (Trunk)
+  Adds 802.1Q tag: [... | VLAN 10 | Data] → sent to Jio Router
+  Router reads VLAN 10 tag → routes to internet
+  Response comes back tagged VLAN 10 → switch strips tag → Port 1 → Rohan ✓
+
+Key insight:
+  Laptops always see untagged frames (they know nothing about VLANs)
+  All VLAN logic happens inside the switch
+  Tags only travel on trunk links between switches/routers
+
+
+INTER-VLAN ROUTING
+-------------------
+VLANs isolated at Layer 2. To communicate between VLANs → need Layer 3 (Router).
+
+Router on a Stick:
+  One physical router port → switch trunk port
+  Router has sub-interfaces (one per VLAN)
+  Routes between VLANs like separate networks
+
+Layer 3 Switch:
+  Switch that can also route. One device does both.
+  More common in enterprises.
+
+
+SWITCHING vs ROUTING
+---------------------
+Switching (Layer 2):
+  Within SAME network/VLAN
+  Uses MAC addresses
+  Device: Switch
+
+Routing (Layer 3):
+  Between DIFFERENT networks/VLANs
+  Uses IP addresses
+  Device: Router
+
+Rule: same network → switch. Different network → router.
+
+
+QUICK REFERENCE
+---------------
+Bus         → shared cable, one break = down, obsolete
+Ring        → circle, token passing, one failure = ring breaks
+Star        → central switch, most common, switch = single point of failure
+Mesh        → every to every, max redundancy, expensive
+Tree        → hierarchical star, enterprise, scalable
+Physical topology → actual wiring
+Logical topology  → how data flows (hub: star physical, bus logical)
+Port (switch)     → physical RJ45 socket on switch, cable plugs in
+VLAN              → logical isolation on one physical switch
+Access port       → one VLAN, end devices, filter + translate (strip/add tag)
+Trunk port        → all VLANs, switch-to-switch, tagged frames
+802.1Q tag        → 4-byte VLAN tag added on trunk links
+Inter-VLAN        → needs router (Layer 3) to route between VLANs
+Switching         → Layer 2, MAC, same network
+Routing           → Layer 3, IP, different networks
+================================================================

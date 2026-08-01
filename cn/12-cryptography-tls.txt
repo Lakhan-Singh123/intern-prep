@@ -1,0 +1,408 @@
+================================================================
+MODULE 12 — CRYPTOGRAPHY AND SECURE PROTOCOLS
+================================================================
+
+FOUR SECURITY GOALS
+--------------------
+Confidentiality   → only authorized can read (encryption)
+Integrity         → data not tampered (hashing, HMAC)
+Authentication    → came from who it claims (signatures, HMAC)
+Non-repudiation   → sender cannot deny sending (digital signatures only)
+
+Non-repudiation example:
+  Rohan transfers ₹1 lakh. Signed with Rohan's private key.
+  He cannot claim "wasn't me" — only he has his private key.
+  Used in: banking, legal documents, code signing.
+
+Note: HMAC proves authentication but NOT non-repudiation.
+  Both parties share the key → either could have produced the tag.
+  Digital signature (asymmetric) = only one party has private key → non-repudiation.
+
+
+SYMMETRIC ENCRYPTION                                             ★★★
+--------------------
+Same key encrypts AND decrypts.
+
+  encrypt("Hello", key=K) → xG92#@kL...
+  decrypt(xG92#@kL..., key=K) → "Hello"
+
+AES (Advanced Encryption Standard):
+  Most widely used symmetric cipher today.
+  Key sizes: 128, 192, 256 bits.
+  Hardware-accelerated (AES-NI in modern CPUs).
+  Used in: HTTPS (after handshake), Wi-Fi WPA2/3, disk encryption.
+  Speed: encrypts gigabytes per second.
+
+DES (Data Encryption Standard):
+  Old. 56-bit key = 2^56 combinations. Cracked in 24 hours (1999).
+  NEVER use. Triple-DES also deprecated.
+
+KEY DISTRIBUTION PROBLEM:
+  Symmetric's weakness: both sides need the same key.
+  Can't send key over internet → attacker intercepts → knows key.
+  Chicken-and-egg: need encryption to share key, need key to encrypt.
+  Solution: use ASYMMETRIC to securely exchange key, then switch to symmetric.
+
+
+ASYMMETRIC CRYPTOGRAPHY                                          ★★★
+------------------------
+Two mathematically linked keys. What one encrypts, ONLY the other decrypts.
+
+  Public key:  share with anyone, publish freely, safe.
+  Private key: NEVER leaves owner. Never transmitted. Never shared.
+
+RSA: most common asymmetric algorithm.
+  Based on difficulty of factoring large prime numbers.
+  Key sizes: 2048 or 4096 bits.
+  1000x+ SLOWER than AES. Never used for bulk data.
+  Used only for: key exchange, digital signatures (small data).
+
+TWO OPERATIONS — completely different directions:
+
+ENCRYPT (for confidentiality):
+  Sender uses RECEIVER's PUBLIC KEY to encrypt.
+  Only receiver's PRIVATE KEY can decrypt.
+  Even the sender cannot decrypt what they just encrypted.
+
+  Alice → encrypt("secret", Bob's public key) → ciphertext
+  Only Bob (private key) can decrypt. Attacker has public key → useless.
+
+SIGN (for authentication + non-repudiation):
+  Sender uses THEIR OWN PRIVATE KEY to sign.
+  Anyone with sender's PUBLIC KEY can verify.
+  Only private key owner could have produced that signature.
+
+  Bob → sign(message, Bob's private key) → signature
+  Anyone: verify(signature, Bob's public key) → true/false
+
+
+HASHING                                                          ★★★
+-------
+One-way function. Any input → fixed-size output (digest).
+Cannot reverse hash to get original input.
+
+  "Hello"       → SHA-256 → 185f8db32921bd46d35...  (always 256 bits)
+  "Hello world" → SHA-256 → 64ec88ca00b268e5ba1a...  (completely different)
+  "Hello World" → SHA-256 → a591a6d40bf420404a01...  (one capital = totally different)
+
+Properties:
+  1. Fixed output:        always same size regardless of input (1 byte or 1 TB)
+  2. Deterministic:       same input → always same hash
+  3. One-way:            cannot reverse to get input
+  4. Avalanche effect:   tiny change → completely different hash
+  5. Collision resistant: hard to find two inputs with same hash
+
+Hash algorithms:
+  MD5:    128-bit. BROKEN — collisions found. Never use for security.
+  SHA-1:  160-bit. DEPRECATED — collision demonstrated 2017.
+  SHA-256: 256-bit. Current standard. TLS, Bitcoin, certificates.
+  SHA-3:  256/512-bit. Different algorithm family. Alternative.
+
+USE CASES:
+
+Password storage:
+  WRONG: store plain text → breach = all exposed.
+  WRONG: store encrypted → key stolen = all exposed.
+  RIGHT: store SHA-256(password + salt).
+  Login: hash entered password → compare with stored hash.
+  Nobody (even admins) can reverse hash to get password.
+
+  SALT: random value added before hashing. Unique per user.
+    Without salt: attacker uses rainbow table (precomputed hash lookup).
+    With salt: SHA-256("password" + "abc_xyz_123") — unique per user.
+               Rainbow tables useless (would need one per salt).
+
+Data integrity:
+  Download file → website shows SHA-256 hash.
+  You run: sha256sum file.iso → compare with published hash.
+  Match = not tampered. Different = corrupted or MITM modified.
+
+Problem with hash alone:
+  Attacker modifies message → recomputes hash → sends both.
+  Receiver: hash matches → thinks it's fine → TRICKED.
+  Hash alone does NOT prove who sent it. Only that it wasn't modified
+  (but attacker can modify AND rehash). Need MAC for authenticity.
+
+
+MAC AND HMAC                                                     ★★★
+------------
+MAC — Message Authentication Code:
+  Combines message + SECRET SHARED KEY → tag.
+  Only someone with the key can produce a valid tag.
+
+  Alice and Bob share key K.
+  Alice: MAC(K, message) → tag → send message + tag.
+  Attacker modifies message → cannot forge tag (no key).
+  Bob: MAC(K, received_message) → compare with received tag.
+  Match = authentic AND untampered.
+
+  Proves: INTEGRITY (not changed) + AUTHENTICITY (came from key holder).
+  Does NOT prove non-repudiation (both parties have key — either could send).
+
+HMAC — Hash-based MAC:
+  HMAC(K, message) = SHA-256(K ⊕ opad || SHA-256(K ⊕ ipad || message))
+  Industry-standard construction. Resistant to length extension attacks.
+  Used in: TLS (every record integrity), JWT (HS256 = HMAC-SHA256),
+           API authentication headers.
+
+
+DIGITAL SIGNATURES                                               ★★★
+------------------
+Combines asymmetric + hashing.
+Provides: integrity + authentication + non-repudiation.
+
+SIGNING:
+  1. Hash the message:    SHA-256(message) → digest (256 bits)
+  2. Encrypt the digest:  RSA(digest, sender's PRIVATE KEY) → signature
+  3. Send:                message + signature
+
+VERIFYING:
+  1. Hash received msg:   SHA-256(received_message) → digest_A
+  2. Decrypt signature:   RSA_decrypt(signature, sender's PUBLIC KEY) → digest_B
+  3. Compare:             digest_A == digest_B? → valid / tampered
+
+Why hash first:
+  Asymmetric on 1GB file = 10 minutes. Impractical.
+  Hash first → always 256 bits → sign 256 bits → fast.
+
+What each step proves:
+  Hash comparison:   message not modified (integrity)
+  Decrypts with public key:  only private key owner signed it (authentication)
+  Only they have private key: can't deny it (non-repudiation)
+
+Use cases:
+  TLS certificate:  CA signs cert with CA's private key.
+  Code signing:     Microsoft signs Windows updates.
+  Email signing:    S/MIME proves email came from claimed sender.
+  JAR signing:      Java .jar trusted publisher verification.
+
+
+================================================================
+TLS — ASYMMETRIC vs SYMMETRIC (THE FULL PICTURE)                ★★★
+================================================================
+
+THE CORE PROBLEM:
+  Want to talk privately with google.com. Never met before. No shared secret.
+  Can't just send a key — attacker watching every packet intercepts it.
+  How do you establish a shared secret with a stranger over an open network?
+
+WHY NOT USE ASYMMETRIC FOR EVERYTHING:
+  AES-256 (symmetric):   encrypts 1GB in ~0.5 seconds.
+  RSA-2048 (asymmetric): encrypts 1GB in ~10 minutes.
+  Asymmetric = 1000x+ slower. Unusable for bulk data.
+  Solution: asymmetric ONCE for key exchange. Symmetric for everything after.
+  Asymmetric = bootstrap. Symmetric = workhorse.
+
+TLS HANDSHAKE — STEP BY STEP:
+
+PHASE 1 — KEY EXCHANGE (asymmetric / DH):
+
+  CLIENT                                    SERVER
+    │                                          │
+    │── ClientHello ──────────────────────────→│
+    │   TLS version, cipher suites             │
+    │   Client Random (32 bytes)               │
+    │   Client DH public key                   │
+    │                                          │
+    │←── ServerHello + Certificate ────────────│
+    │    Server Random (32 bytes)              │
+    │    Server DH public key                  │
+    │    Certificate: {                        │
+    │      domain: google.com                  │
+    │      Google's public key                 │
+    │      DigiCert's signature }              │
+    │                                          │
+    │  [CLIENT VERIFIES CERTIFICATE]           │
+    │    DigiCert's signature valid? ✓         │
+    │    Domain = google.com? ✓                │
+    │    Not expired? ✓                        │
+    │    → This IS Google's real public key    │
+    │                                          │
+    │  [BOTH DERIVE SAME SESSION KEY]          │
+    │  shared_secret = DH(my_priv, their_pub)  │
+    │  Both sides compute IDENTICAL result.    │
+    │  Attacker has public keys — can't reverse│
+    │                                          │
+    │  session_key = mix(shared_secret         │
+    │                  + client_random         │
+    │                  + server_random)        │
+    │  Two randoms: unique key every session   │
+
+PHASE 2 — SWITCH TO SYMMETRIC (AES):
+
+    │── Finished (AES encrypted) ────────────→│
+    │←── Finished (AES encrypted) ─────────────│
+    │                                          │
+    │════════ All HTTP data = AES encrypted ═══│
+
+Why certificate step matters:
+  Without it: attacker intercepts, swaps DH keys, becomes MITM.
+  Certificate proves server identity (CA vouches for it).
+  Attacker can't forge CA's signature → MITM blocked.
+
+ROLES OF EACH IN TLS:
+  ECDHE (asymmetric DH):  key exchange → derive shared secret
+  RSA signature on cert:  server identity proof
+  AES-256 (symmetric):    encrypt all actual HTTP data (bulk, fast)
+  HMAC-SHA256:            integrity check on every TLS record
+
+THE FULL PICTURE:
+  PROBLEM                  SOLUTION               WHY
+  ──────────────────────────────────────────────────────────────
+  Agree on secret          Diffie-Hellman         Math: can't reverse
+  with stranger            key exchange           from public values
+  Prove server genuine     Certificate + CA       Trusted 3rd party
+  not impostor             chain of trust         vouches for identity
+  Encrypt bulk data fast   AES-256 (symmetric)    1000x faster than RSA
+  Past sessions safe if    ECDHE (ephemeral)      Fresh keys per session
+  key stolen later         Forward secrecy        old keys don't exist
+  Verify data not tampered HMAC per record        Hash+key, unforgeable
+
+
+FORWARD SECRECY — WHY ECDHE NOT RSA KEY EXCHANGE
+--------------------------------------------------
+Old RSA key exchange (no forward secrecy):
+  Client encrypts session_key with Google's RSA public key → sends.
+  Google decrypts with private key → both have session_key.
+  Attacker records all traffic today.
+  Steals Google's private key years later.
+  Decrypts old session_key → decrypts all old conversations. Past exposed.
+
+ECDHE (Ephemeral Diffie-Hellman):
+  "Ephemeral" = fresh key pair generated for EVERY session.
+  Session key derived from throwaway keys + randoms.
+  Throwaway keys deleted immediately after session.
+  Session key never stored.
+  Attacker records traffic. Steals key later.
+  Cannot decrypt old sessions — throwaway keys gone, never stored.
+  PAST SESSIONS ARE SAFE. This is FORWARD SECRECY.
+  TLS 1.3 made ECDHE mandatory. RSA key exchange removed.
+
+
+PKI — PUBLIC KEY INFRASTRUCTURE                                  ★★★
+-------------------------------
+System of CAs and certificates that enables asymmetric crypto at internet scale.
+
+Problem without PKI:
+  Server sends public key. How do you know it's really theirs?
+  Anyone can generate a key pair and claim "I'm Google."
+  Need a trusted third party to vouch: "Yes this key belongs to Google."
+
+CERTIFICATE AUTHORITY (CA):
+  Trusted organization that verifies identities and signs certificates.
+  Pre-installed in browsers/OS: ~100+ trusted Root CAs.
+  (DigiCert, Let's Encrypt, Comodo, GlobalSign...)
+
+  CA signs certificate = CA's private key signature over {domain + public key}.
+  Browser verifies: CA's signature valid? → trust this public key.
+
+CERTIFICATE CONTENTS:
+  Subject:    google.com
+  Public key: Google's public key
+  Issuer:     DigiCert
+  Validity:   2025-01-01 to 2026-01-01
+  Signature:  DigiCert's digital signature over all the above
+
+CHAIN OF TRUST:
+  ROOT CA (DigiCert Root)
+    → self-signed, built into every browser/OS
+    → private key stored OFFLINE (air-gapped HSM)
+    → never used for daily signing (too sensitive)
+           ↓ signs
+  INTERMEDIATE CA (DigiCert TLS RSA SHA256 2020 CA1)
+    → signed by Root CA
+    → does actual daily certificate signing
+    → if compromised → revoke just this, root still safe
+           ↓ signs
+  END CERTIFICATE (google.com)
+    → signed by Intermediate CA
+    → presented during TLS handshake
+
+  Verification:
+    End cert signed by Intermediate? verify with Intermediate's pubkey ✓
+    Intermediate signed by Root?     verify with Root's pubkey ✓
+    Root in my browser trust store?  ✓
+    → full chain verified → server genuine
+
+Why intermediates:
+  Root key is most sensitive key on earth.
+  Used daily = higher exposure risk.
+  Solution: Root signs Intermediates → goes OFFLINE.
+  Intermediate compromised → revoke it → root CA safe.
+
+CERTIFICATE REVOCATION:
+  Cert issued for 1 year. Private key stolen in month 2? Must revoke.
+
+  CRL (Certificate Revocation List):
+    CA publishes list of revoked certs. Browser downloads.
+    Problem: large, slow, not real-time.
+
+  OCSP (Online Certificate Status Protocol):
+    Browser asks CA: "is cert #12345 still valid?"
+    Real-time response. Adds latency. CA must be online.
+
+  OCSP Stapling (best):
+    Server fetches OCSP response, attaches to TLS handshake.
+    Browser gets status without contacting CA separately.
+
+
+SSL vs TLS
+----------
+People say "SSL" but mean TLS. SSL is dead.
+
+  SSL 2.0, 3.0  → broken, deprecated, never use.
+  TLS 1.0, 1.1  → deprecated, known weaknesses.
+  TLS 1.2       → still widely used, secure.
+  TLS 1.3       → current standard (2018).
+                   1-RTT handshake (faster).
+                   0-RTT resumption (returning users).
+                   ECDHE mandatory (forward secrecy always on).
+                   Removed all weak/legacy ciphers.
+
+"SSL certificate" = misnomer. They're TLS certificates.
+SSL is gone. TLS is what runs. Always say TLS in interviews.
+
+
+WHICH TOOL FOR WHICH GOAL
+--------------------------
+Goal                   Tool
+──────────────────────────────────────────────────────────────────
+Confidentiality        AES-256 (symmetric, bulk data)
+                       ECDHE (key exchange to share AES key)
+Integrity              SHA-256 hash / HMAC
+Authentication         Digital signature / HMAC
+Non-repudiation        Digital signature ONLY (asymmetric)
+Key exchange           Diffie-Hellman ECDHE
+Identity verification  PKI certificates + CA chain of trust
+Password storage       SHA-256 + salt (bcrypt/argon2 in practice)
+
+
+QUICK REFERENCE
+---------------
+Non-repudiation      → only digital signatures, can't deny (private key)
+AES                  → symmetric, fast, bulk data, 128/192/256-bit key
+DES                  → broken, 56-bit, never use
+Key distribution     → can't share symmetric key safely → DH solves this
+RSA                  → asymmetric, slow, key exchange + signatures only
+Encrypt with pub key → only private key decrypts (confidentiality)
+Sign with priv key   → anyone with pub key can verify (auth + non-repudiation)
+Hash                 → one-way, fixed output, avalanche effect, irreversible
+SHA-256              → current standard, 256-bit output
+MD5/SHA-1            → broken/deprecated, never use for security
+Salt                 → random value + password before hashing, defeats rainbow tables
+MAC                  → hash + secret key = integrity + authenticity
+HMAC                 → industry-standard MAC, used in TLS and JWT
+Digital signature    → hash message → encrypt hash with private key
+Verify signature     → decrypt with public key → compare hash
+TLS asymmetric       → ECDHE key exchange + RSA cert signature (small, once)
+TLS symmetric        → AES-256 for all actual data (bulk, fast)
+TLS HMAC             → integrity check on every encrypted record
+Forward secrecy      → ECDHE ephemeral keys, past sessions safe if key stolen
+CA                   → trusted 3rd party that signs certificates
+Root CA              → self-signed, in browser, kept offline
+Intermediate CA      → signed by root, does daily signing, revocable
+Chain of trust       → end cert → intermediate → root (each step verified)
+OCSP Stapling        → server attaches revocation status to TLS handshake
+SSL                  → deprecated, broken. TLS is what actually runs.
+TLS 1.3              → current, 1-RTT, mandatory ECDHE, removed weak ciphers
+================================================================
