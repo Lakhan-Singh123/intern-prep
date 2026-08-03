@@ -1,0 +1,615 @@
+================================================================
+DBMS + SQL — INTERVIEW PREP SYLLABUS
+Target: Microsoft DS Intern, Cisco DS Intern, Flipkart
+================================================================
+Priority: ★★★ = must know deeply | ★★ = concept + example | ★ = just know what it is
+Status:   [ ] not done | [x] done | [R] needs revision
+
+Estimated time: 12-13 days
+Focus: DS intern = SQL is tested live. Know it cold.
+
+================================================================
+MODULE PLAN
+================================================================
+
+[x] M1  — DBMS Foundations               (0.5 day)   ★★
+[x] M2  — ER Model & Relational Model     (1 day)     ★★
+[x] M3  — Keys & Constraints              (0.5 day)   ★★★
+[x] M4  — Normalization                   (1.5 days)  ★★★
+[x] M5  — SQL Basics                      (1 day)     ★★★
+[x] M6  — SQL Joins                       (1 day)     ★★★
+[x] M7  — Aggregates, Subqueries & NULLs  (1 day)     ★★★
+[x] M8  — Window Functions                (1.5 days)  ★★★  ← DS interview gold
+[x] M9  — CTEs & Views                    (0.5 day)   ★★★
+[x] M10 — Indexing & B+ Trees             (1 day)     ★★★
+[x] M11 — Transactions, ACID & Isolation  (1 day)     ★★★
+[x] M12 — Concurrency Control & Deadlocks (0.5 day)   ★★
+[x] M13 — NoSQL & CAP Theorem             (0.5 day)   ★★
+[x] M14 — Query Optimization              (0.5 day)   ★★
+[x] M15 — LeetCode SQL Practice           (ongoing)   ★★★
+
+
+================================================================
+MODULE 1 — DBMS FOUNDATIONS                               ★★
+================================================================
+Notes file: 01-foundations.txt
+
+[ ] What is a database vs flat file (CSV, Excel)
+[ ] What is a DBMS — software layer between user and data
+[ ] Why DBMS — concurrent access, ACID, security, query language
+[ ] Data abstraction — 3 levels:
+      Physical (how data stored on disk)
+      Logical  (what data and relationships exist)
+      View     (what a user sees — filtered/formatted)
+[ ] DBMS architecture — 1-tier, 2-tier (client-server), 3-tier (client-app-db)
+[ ] Schema vs Instance
+      Schema = structure (table definitions) — doesn't change often
+      Instance = actual data at a point in time — changes constantly
+[ ] DDL vs DML vs DCL vs TCL (just know what each stands for)
+
+SKIP FROM ORIGINAL SYLLABUS: database types, DBMS interfaces quiz sections
+
+
+================================================================
+MODULE 2 — ER MODEL & RELATIONAL MODEL                    ★★
+================================================================
+Notes file: 02-er-relational.txt
+
+ER MODEL:
+[ ] Entity — real-world object (Student, Order, Product)
+[ ] Attribute types:
+      Simple vs Composite (Name → FirstName + LastName)
+      Single-valued vs Multi-valued (Phone: one person, multiple phones)
+      Derived (Age derived from DOB)
+      Key attribute (uniquely identifies entity)
+[ ] Relationship types: 1:1, 1:N, M:N
+[ ] Participation: Total (every entity must participate) vs Partial
+[ ] Weak entity — no key of its own, depends on strong entity
+      e.g., OrderItem depends on Order (has discriminator, not full key)
+[ ] ISA / Generalisation / Specialisation (inheritance in ER)
+[ ] How to draw ER diagram — rectangles, ellipses, diamonds, lines
+
+RELATIONAL MODEL:
+[ ] Relation = table. Tuple = row. Attribute = column.
+[ ] Degree = number of columns. Cardinality = number of rows.
+[ ] Domain = allowed values for an attribute
+[ ] Intension vs Extension (same as Schema vs Instance)
+[ ] Relational algebra basics:
+      SELECT (σ) — filter rows
+      PROJECT (π) — filter columns
+      JOIN (⋈) — combine tables
+      UNION, INTERSECTION, DIFFERENCE
+
+SKIP FROM ORIGINAL SYLLABUS: Extended ER features (deep), quizzes
+
+
+================================================================
+MODULE 3 — KEYS & CONSTRAINTS                             ★★★
+================================================================
+Notes file: 03-keys-constraints.txt
+
+KEYS — must know every type cold:
+[ ] Super Key — any set of attributes that uniquely identifies a tuple
+[ ] Candidate Key — minimal super key (no redundant attributes)
+[ ] Primary Key — chosen candidate key. NOT NULL + UNIQUE.
+[ ] Alternate Key — candidate keys not chosen as primary key
+[ ] Foreign Key — references primary key of another table. Enforces referential integrity.
+[ ] Composite Key — primary key made of multiple columns
+[ ] Surrogate Key — artificial key (auto-increment ID). No business meaning.
+[ ] Natural Key — real-world identifier (email, Aadhar number)
+
+CONSTRAINTS:
+[ ] NOT NULL
+[ ] UNIQUE
+[ ] PRIMARY KEY (NOT NULL + UNIQUE)
+[ ] FOREIGN KEY + ON DELETE CASCADE / SET NULL / RESTRICT
+[ ] CHECK (e.g., age > 18)
+[ ] DEFAULT
+
+INTERVIEW TRAPS:
+[ ] Can a table have multiple UNIQUE constraints? YES
+[ ] Can a foreign key be NULL? YES (if column allows NULL)
+[ ] Can a primary key be composite? YES
+[ ] Difference between candidate key and primary key?
+
+
+================================================================
+MODULE 4 — NORMALIZATION                                  ★★★
+================================================================
+Notes file: 04-normalization.txt
+
+FUNCTIONAL DEPENDENCY:
+[ ] What is FD — A → B means knowing A uniquely determines B
+[ ] Trivial vs Non-trivial FD
+[ ] Armstrong's Axioms:
+      Reflexivity:  if B ⊆ A, then A → B
+      Augmentation: if A → B, then AC → BC
+      Transitivity: if A → B and B → C, then A → C
+[ ] Closure of attribute set — what can be derived from a set of FDs
+[ ] Finding candidate keys using closures
+
+NORMAL FORMS — know with examples:
+[ ] 1NF: no multi-valued attributes, no repeating groups. Atomic values only.
+      Bad: Phone = "9876, 8765" → Split into separate rows
+[ ] 2NF: 1NF + no partial dependency (non-key attribute depends on PART of composite PK)
+      Only relevant when PK is composite.
+[ ] 3NF: 2NF + no transitive dependency (non-key → non-key → non-key)
+      e.g., StudentID → DeptID → DeptName: DeptName transitively depends on StudentID
+[ ] BCNF: stricter 3NF. Every determinant must be a candidate key.
+      Anomaly 3NF allows: non-candidate-key can determine part of candidate key.
+[ ] 4NF, 5NF — just know they exist, deal with multi-valued and join dependencies
+
+ANOMALIES (why normalization matters):
+[ ] Insert anomaly — can't insert data without unrelated data
+[ ] Update anomaly — update one row, forget others → inconsistency
+[ ] Delete anomaly — delete a row → lose unrelated data
+
+DENORMALIZATION:
+[ ] Intentionally introducing redundancy for performance
+[ ] When: read-heavy systems, reporting/analytics, data warehouses
+[ ] Trade-off: faster reads, slower writes, storage cost, risk of inconsistency
+
+
+================================================================
+MODULE 5 — SQL BASICS                                     ★★★
+================================================================
+Notes file: 05-sql-basics.txt
+
+COMMAND TYPES:
+[ ] DDL — CREATE, ALTER, DROP, TRUNCATE, RENAME
+[ ] DML — SELECT, INSERT, UPDATE, DELETE
+[ ] DCL — GRANT, REVOKE
+[ ] TCL — COMMIT, ROLLBACK, SAVEPOINT
+
+CREATE TABLE + DATA TYPES:
+[ ] INT, BIGINT, FLOAT, DECIMAL(p,s)
+[ ] VARCHAR(n), CHAR(n), TEXT
+[ ] DATE, DATETIME, TIMESTAMP
+[ ] BOOLEAN
+[ ] CREATE TABLE with constraints
+[ ] ALTER TABLE (add/drop column, modify type)
+
+SELECT CLAUSES — order of execution (NOT writing order):
+[ ] FROM → JOIN → WHERE → GROUP BY → HAVING → SELECT → DISTINCT → ORDER BY → LIMIT
+    (Writing order: SELECT→FROM→WHERE→GROUP BY→HAVING→ORDER BY→LIMIT)
+[ ] WHERE — filter rows before grouping
+[ ] GROUP BY — group rows with same value
+[ ] HAVING — filter groups (after GROUP BY)
+[ ] ORDER BY — sort results (ASC default, DESC)
+[ ] LIMIT / OFFSET — pagination
+[ ] DISTINCT — remove duplicate rows in result
+
+OPERATORS:
+[ ] Comparison: =, <>, !=, <, >, <=, >=
+[ ] Logical: AND, OR, NOT
+[ ] IN, NOT IN
+[ ] BETWEEN (inclusive both ends)
+[ ] LIKE ('_' = one char, '%' = zero or more chars)
+[ ] IS NULL, IS NOT NULL
+[ ] EXISTS, NOT EXISTS
+
+STRING FUNCTIONS:
+[ ] UPPER(), LOWER(), LENGTH(), TRIM()
+[ ] SUBSTRING(str, start, len)
+[ ] CONCAT(), REPLACE()
+[ ] LEFT(str, n), RIGHT(str, n)
+
+DATE FUNCTIONS:
+[ ] NOW(), CURDATE(), CURTIME()
+[ ] YEAR(), MONTH(), DAY(), HOUR()
+[ ] DATEDIFF(date1, date2)
+[ ] DATE_ADD(date, INTERVAL n DAY/MONTH/YEAR)
+
+CASE STATEMENT:
+[ ] Simple CASE: CASE col WHEN val1 THEN ... WHEN val2 THEN ... ELSE ... END
+[ ] Searched CASE: CASE WHEN condition THEN ... ELSE ... END
+[ ] Use inside SELECT, ORDER BY, GROUP BY
+
+
+================================================================
+MODULE 6 — SQL JOINS                                      ★★★
+================================================================
+Notes file: 06-joins.txt
+
+[ ] INNER JOIN — rows that match in BOTH tables
+[ ] LEFT JOIN (LEFT OUTER) — all rows from left + matching from right (NULL if no match)
+[ ] RIGHT JOIN (RIGHT OUTER) — all from right + matching from left
+[ ] FULL OUTER JOIN — all rows from both, NULL where no match (MySQL: emulate with UNION)
+[ ] CROSS JOIN — cartesian product (every row × every row). No ON clause.
+[ ] SELF JOIN — table joined with itself (use aliases)
+
+KNOW HOW TO:
+[ ] Join 3+ tables
+[ ] Filter after join (WHERE vs ON difference)
+[ ] Find rows in A but NOT in B (LEFT JOIN + WHERE B.id IS NULL)
+[ ] Self join for "find employees who earn more than their manager"
+
+NULL IN JOINS:
+[ ] NULL never equals NULL → NULL rows don't match in INNER JOIN
+[ ] LEFT JOIN preserves left rows even when no match → NULLs appear on right side
+
+INTERVIEW CLASSIC:
+[ ] Difference between WHERE and ON in joins
+      ON filters BEFORE join happens (for outer joins, determines which rows get NULL)
+      WHERE filters AFTER join result is produced
+
+
+================================================================
+MODULE 7 — AGGREGATES, SUBQUERIES & NULL HANDLING         ★★★
+================================================================
+Notes file: 07-aggregates-subqueries.txt
+
+AGGREGATE FUNCTIONS:
+[ ] COUNT(*) — counts all rows including NULLs
+[ ] COUNT(col) — counts non-NULL values in column
+[ ] SUM(col), AVG(col) — ignore NULLs
+[ ] MIN(col), MAX(col)
+[ ] GROUP BY with multiple columns
+[ ] HAVING vs WHERE — HAVING filters aggregated results, WHERE filters rows
+
+NULL HANDLING:
+[ ] NULL = unknown. NULL ≠ NULL. Use IS NULL not = NULL.
+[ ] Any arithmetic with NULL = NULL. (5 + NULL = NULL)
+[ ] COUNT(*) counts NULLs. COUNT(col) does NOT.
+[ ] AVG ignores NULLs (denominator = non-NULL count)
+[ ] COALESCE(a, b, c) — returns first non-NULL value
+[ ] NULLIF(a, b) — returns NULL if a = b, else returns a
+[ ] IFNULL(a, default) — MySQL specific
+
+SUBQUERIES:
+[ ] In WHERE: SELECT * FROM emp WHERE salary > (SELECT AVG(salary) FROM emp)
+[ ] In FROM (derived table / inline view): SELECT * FROM (SELECT ...) AS t
+[ ] In SELECT (scalar subquery): SELECT name, (SELECT COUNT(*) FROM orders WHERE orders.cid = c.id) FROM customers c
+[ ] Correlated subquery — references outer query, runs once per outer row (SLOW)
+[ ] Non-correlated — runs once, result used by outer query
+
+[ ] EXISTS vs IN:
+      EXISTS: stops at first match (faster for large subquery result)
+      IN: returns full list, then checks membership
+      EXISTS with NULL: safe. IN with NULL: tricky (NOT IN returns empty if NULL in list)
+
+
+================================================================
+MODULE 8 — WINDOW FUNCTIONS                               ★★★
+================================================================
+Notes file: 08-window-functions.txt
+← MOST IMPORTANT MODULE FOR DS INTERVIEWS. Know every function cold.
+
+[ ] What is a window function — aggregation WITHOUT collapsing rows
+      Regular GROUP BY: 5 rows → 1 row per group
+      Window function: 5 rows → still 5 rows, but with aggregate value added
+
+SYNTAX:
+[ ] function() OVER (PARTITION BY col ORDER BY col ROWS/RANGE BETWEEN ...)
+
+RANKING FUNCTIONS:
+[ ] ROW_NUMBER() — unique rank, no ties (1,2,3,4,5)
+[ ] RANK() — gaps on tie (1,2,2,4,5)
+[ ] DENSE_RANK() — no gaps on tie (1,2,2,3,4)
+[ ] NTILE(n) — divide rows into n buckets
+
+OFFSET FUNCTIONS:
+[ ] LAG(col, n, default) — value from n rows BEFORE current row
+[ ] LEAD(col, n, default) — value from n rows AFTER current row
+[ ] FIRST_VALUE(col) — first value in window frame
+[ ] LAST_VALUE(col) — last value in window frame (watch frame boundaries)
+
+AGGREGATE AS WINDOW:
+[ ] SUM() OVER (PARTITION BY ...) — running total per partition
+[ ] AVG() OVER (PARTITION BY ...) — rolling average
+[ ] COUNT() OVER ()
+
+PARTITION BY vs GROUP BY:
+[ ] GROUP BY: collapses rows into one per group
+[ ] PARTITION BY: keeps all rows, computes per group, puts result in each row
+
+CLASSIC INTERVIEW PROBLEMS USING WINDOW FUNCTIONS:
+[ ] Top N per group (e.g., top 2 salaries per department)
+[ ] Running total (cumulative sum)
+[ ] Previous row comparison (month-over-month change)
+[ ] Find gaps in sequence (ROW_NUMBER trick)
+[ ] Median salary
+[ ] Percentage of total (SUM OVER all / individual value)
+
+
+================================================================
+MODULE 9 — CTEs & VIEWS                                   ★★★
+================================================================
+Notes file: 09-ctes-views.txt
+
+CTEs (Common Table Expressions):
+[ ] WITH cte_name AS (SELECT ...) SELECT * FROM cte_name
+[ ] Multiple CTEs: WITH cte1 AS (...), cte2 AS (...) SELECT ...
+[ ] Recursive CTE — calls itself, used for hierarchical data (org charts, trees)
+      WITH RECURSIVE cte AS (
+        base case
+        UNION ALL
+        recursive case referencing cte
+      )
+[ ] CTE vs Subquery:
+      CTE: readable, reusable in same query, can be recursive
+      Subquery: inline, not reusable, can be correlated
+
+VIEWS:
+[ ] Virtual table — stored SELECT query, no data stored
+[ ] CREATE VIEW v AS SELECT ...
+[ ] Updatable views (simple views) vs non-updatable (GROUP BY, DISTINCT, joins)
+[ ] DROP VIEW, CREATE OR REPLACE VIEW
+
+MATERIALIZED VIEWS:
+[ ] Stores actual data (snapshot), not just query definition
+[ ] Faster reads — no re-computation on each access
+[ ] Needs refresh (manual or scheduled)
+[ ] Trade-off: stale data vs query speed
+[ ] Used in: data warehouses, reporting, heavy aggregation queries
+
+
+================================================================
+MODULE 10 — INDEXING & B+ TREES                           ★★★
+================================================================
+Notes file: 10-indexing.txt
+
+WHY INDEXING:
+[ ] Without index: full table scan O(n). With index: O(log n).
+[ ] Index = separate data structure pointing to rows
+[ ] Trade-off: faster reads, slower writes (index must update), storage cost
+
+TYPES OF INDEXES:
+[ ] Primary index — on primary key (auto-created). Clustered.
+[ ] Clustered index — actual data rows physically sorted by index key.
+      One per table only (data can only be sorted one way).
+[ ] Non-clustered index — separate structure, stores pointer to actual row.
+      Multiple allowed per table.
+[ ] Unique index — enforces uniqueness (like UNIQUE constraint)
+[ ] Composite index — index on multiple columns. Order matters.
+      Index on (A, B): efficient for queries on A or (A, B). NOT for B alone.
+[ ] Covering index — index contains all columns needed by query. No table lookup.
+[ ] Full-text index — for text search (LIKE '%word%' won't use normal index)
+
+B+ TREE (how indexes are stored):
+[ ] Balanced tree. All data at leaf nodes.
+[ ] Internal nodes: only keys (for routing).
+[ ] Leaf nodes: keys + actual row pointers, linked list (range queries fast).
+[ ] Insert/delete keeps tree balanced (O(log n) always).
+[ ] Why B+ over B-tree: leaf linked list → range scan without traversing tree.
+[ ] Why not binary search tree: B+ tree has high branching factor → fewer disk I/Os.
+
+WHEN NOT TO INDEX:
+[ ] Small tables (full scan faster)
+[ ] Columns with low cardinality (e.g., gender — only 2 values, index not selective)
+[ ] Columns updated frequently (index maintenance cost)
+[ ] Rarely queried columns
+
+QUERY PLANNER:
+[ ] EXPLAIN SELECT ... — see if index is being used
+[ ] Index not used when: LIKE '%word' (leading wildcard), function on column, type mismatch
+[ ] Force index: USE INDEX hint (MySQL)
+
+
+================================================================
+MODULE 11 — TRANSACTIONS, ACID & ISOLATION LEVELS         ★★★
+================================================================
+Notes file: 11-transactions-acid.txt
+
+TRANSACTION:
+[ ] Unit of work: all-or-nothing. BEGIN → statements → COMMIT or ROLLBACK
+[ ] SAVEPOINT — partial rollback to a named point
+
+ACID PROPERTIES:
+[ ] Atomicity — all or nothing. Partial updates never persist.
+[ ] Consistency — DB moves from one valid state to another. Constraints maintained.
+[ ] Isolation — concurrent transactions don't interfere. Each sees a snapshot.
+[ ] Durability — committed transactions survive crashes. WAL/redo logs.
+
+CONCURRENCY PROBLEMS (what isolation prevents):
+[ ] Dirty Read — read uncommitted data from another transaction
+      T1 writes X=10 (not committed). T2 reads X=10. T1 rolls back. T2 has wrong value.
+[ ] Non-Repeatable Read — same row read twice, different values
+      T1 reads row. T2 updates + commits. T1 reads same row again → different value.
+[ ] Phantom Read — same query run twice, different set of rows
+      T1 queries WHERE age > 20 → 5 rows. T2 inserts row with age=25. T1 queries again → 6 rows.
+[ ] Lost Update — two transactions update same row, one overwrites the other
+
+ISOLATION LEVELS (weakest to strongest):
+[ ] Read Uncommitted — sees dirty reads. No locks. Fastest, least safe.
+[ ] Read Committed — no dirty reads. Can still get non-repeatable reads. (PostgreSQL default)
+[ ] Repeatable Read — no dirty + no non-repeatable reads. Phantom reads possible. (MySQL default)
+[ ] Serializable — no dirty + no non-repeatable + no phantom. Fully isolated. Slowest.
+
+TABLE:
+  Level               | Dirty Read | Non-Repeatable | Phantom
+  ─────────────────────────────────────────────────────────────
+  Read Uncommitted    |    YES     |     YES        |  YES
+  Read Committed      |    NO      |     YES        |  YES
+  Repeatable Read     |    NO      |     NO         |  YES
+  Serializable        |    NO      |     NO         |  NO
+
+[ ] MVCC (Multi-Version Concurrency Control) — PostgreSQL/MySQL InnoDB
+      Each transaction sees a snapshot of data at transaction start time.
+      Writers don't block readers. Readers don't block writers.
+      How: old row versions kept, transaction sees correct version based on timestamp.
+
+
+================================================================
+MODULE 12 — CONCURRENCY CONTROL & DEADLOCKS               ★★
+================================================================
+Notes file: 12-concurrency.txt
+
+LOCKS:
+[ ] Shared Lock (S) — read lock. Multiple transactions can hold simultaneously.
+[ ] Exclusive Lock (X) — write lock. Only one transaction. Blocks all others.
+[ ] S + S = compatible. S + X = conflict. X + X = conflict.
+
+2-PHASE LOCKING (2PL):
+[ ] Phase 1 (Growing): acquire locks, never release.
+[ ] Phase 2 (Shrinking): release locks, never acquire.
+[ ] Guarantees serializability but can cause deadlocks.
+
+DEADLOCK:
+[ ] T1 holds lock on A, wants B. T2 holds lock on B, wants A. Both wait forever.
+[ ] Detection: wait-for graph. Cycle = deadlock.
+[ ] Prevention: lock ordering (always acquire locks in same global order)
+[ ] Resolution: victim selection — abort one transaction (usually younger/cheaper)
+[ ] Timeout: if transaction waits too long → assume deadlock → rollback
+
+TIMESTAMP ORDERING:
+[ ] Each transaction gets a timestamp. Older timestamp = higher priority.
+[ ] Conflict: younger transaction must rollback (not older).
+[ ] No deadlocks (no waiting, only rollback).
+
+
+================================================================
+MODULE 13 — NOSQL & CAP THEOREM                           ★★
+================================================================
+Notes file: 13-nosql-cap.txt
+
+NOSQL TYPES:
+[ ] Document — JSON documents. Schema-flexible. (MongoDB, Firestore)
+[ ] Key-Value — simple lookup. Fastest. (Redis, DynamoDB)
+[ ] Columnar — column families. Analytics. (Cassandra, HBase)
+[ ] Graph — nodes + edges. Relationships. (Neo4j)
+
+ACID vs BASE:
+[ ] ACID: Atomicity, Consistency, Isolation, Durability (SQL databases)
+[ ] BASE: Basically Available, Soft state, Eventually consistent (NoSQL)
+      Eventually consistent: writes propagate slowly, replicas may lag, eventually all agree.
+
+CAP THEOREM:                                                     ★★★
+[ ] Distributed system can guarantee only 2 of 3:
+      Consistency — every read gets latest write (or error)
+      Availability — every request gets a response (not necessarily latest)
+      Partition Tolerance — system works even if network splits between nodes
+[ ] Network partitions always happen in real systems → must choose C or A.
+      CP systems: sacrifice availability (MongoDB, HBase, Redis Cluster)
+      AP systems: sacrifice consistency (Cassandra, DynamoDB, CouchDB)
+      CA: only possible if no partitions (single-node SQL = CA but not truly distributed)
+[ ] PACELC: extension — even without partition, trade-off between latency and consistency
+
+WHEN SQL vs NOSQL:
+[ ] SQL: structured data, complex queries, relationships, ACID needed, reporting
+[ ] NoSQL: massive scale, flexible schema, simple access patterns, eventual consistency OK
+
+
+================================================================
+MODULE 14 — QUERY OPTIMIZATION                            ★★
+================================================================
+Notes file: 14-query-optimization.txt
+
+[ ] Query processing steps:
+      Parse → Validate → Translate to relational algebra → Optimize → Execute
+[ ] Cost-based optimizer: estimates cost (I/O, CPU) of different plans, picks cheapest
+[ ] Rule-based optimizer: applies fixed transformation rules
+
+EXPLAIN PLAN:
+[ ] EXPLAIN SELECT ... — shows execution plan
+[ ] Look for: Seq Scan (bad, full table) vs Index Scan (good)
+[ ] Check: rows estimated, cost, join type
+
+OPTIMIZATION TECHNIQUES:
+[ ] Use indexes on JOIN and WHERE columns
+[ ] Avoid SELECT * — fetch only needed columns (covering index)
+[ ] Avoid functions on indexed columns in WHERE (breaks index usage)
+      BAD:  WHERE YEAR(created_at) = 2024
+      GOOD: WHERE created_at BETWEEN '2024-01-01' AND '2024-12-31'
+[ ] Avoid LIKE with leading wildcard (WHERE name LIKE '%Singh' — can't use index)
+[ ] Push WHERE conditions down (filter early, join less data)
+[ ] Prefer JOIN over correlated subqueries (correlated = row-by-row, slow)
+[ ] Pagination: LIMIT + OFFSET is slow for large offsets → use keyset pagination
+
+SKIP FROM ORIGINAL SYLLABUS: Thomas' Rules, Serialization Graphs, advanced distributed DB,
+Security/RBAC, DBaaS, Data Warehousing, Database Monitoring, Big Data section
+
+
+================================================================
+MODULE 15 — LEETCODE SQL 50 (after M14)                  ★★★
+================================================================
+Notes file: 15-practice-problems.txt
+
+Source: LeetCode official "SQL 50" study plan (under Study Plans on LeetCode).
+        Search "SQL 50" on LeetCode. Free. Do all 50 in order.
+
+Do this AFTER completing modules 1-14.
+Target: all 50 problems. Timed — max 20 min per problem.
+If stuck after 15 min: read solution, understand pattern, try again from scratch.
+
+TOPIC BREAKDOWN (what SQL 50 covers — use to track gaps):
+[ ] Select                   (~5 problems)
+[ ] Basic Joins              (~6 problems)
+[ ] Basic Aggregate Functions(~5 problems)
+[ ] Sorting and Grouping     (~4 problems)
+[ ] Advanced Select & Joins  (~7 problems)
+[ ] Subqueries               (~5 problems)
+[ ] Advanced String Functions, Regex, Clause (~5 problems)
+[ ] Window Functions         (~5 problems — do these last, hardest)
+[ ] Miscellaneous / Mixed    (~8 problems)
+
+STRATEGY:
+[ ] Do topics in order above (matches module progression)
+[ ] After each topic section: review mistakes, note the pattern
+[ ] Window function problems: attempt only after finishing M8
+[ ] Keep a mistake log: what you got wrong + why
+
+
+================================================================
+DAY-BY-DAY SCHEDULE (12-13 days)
+================================================================
+Day 1:   M1 (Foundations) + M2 (ER Model)
+Day 2:   M3 (Keys) + M4 start (FDs, 1NF, 2NF)
+Day 3:   M4 finish (3NF, BCNF, denorm) + M5 start (SQL basics, DDL, DML)
+Day 4:   M5 finish (clauses, operators, string/date functions, CASE)
+Day 5:   M6 (Joins — all types, practice 5 LC problems)
+Day 6:   M7 (Aggregates, Subqueries, NULL handling + 5 LC problems)
+Day 7:   M8 (Window Functions — deep dive, 5 LC problems)
+Day 8:   M8 practice continued + M9 (CTEs, Views)
+Day 9:   M10 (Indexing, B+ Trees)
+Day 10:  M11 (Transactions, ACID, Isolation Levels)
+Day 11:  M12 (Concurrency) + M13 (NoSQL, CAP)
+Day 12:  M14 (Query Optimization)
+Day 13+: LeetCode SQL 50 — all 50 problems in order. ~5 problems/day = 10 days.
+
+
+================================================================
+INTERVIEW QUICK FACTS (fill as you go)
+================================================================
+ACID             →
+CAP              →
+Isolation levels →
+Dirty read       →
+Phantom read     →
+MVCC             →
+B+ tree          →
+Clustered index  →
+Window function  →
+CTE              →
+Normalized       →
+BCNF             →
+Deadlock fix     →
+NoSQL types      →
+BASE             →
+
+
+================================================================
+WHAT TO SKIP (from original syllabus you sent)
+================================================================
+These are in the original syllabus but low priority for DS intern:
+
+★ (just know the name):
+  - Thomas' Write Rule
+  - Serialization graphs
+  - Timestamp ordering protocols (deep)
+  - Starvation in DBMS
+  - RBAC models (deep)
+  - Data Masking Techniques
+  - DBaaS
+  - Big Data & DBMS
+  - Database Monitoring
+  - Data Migration
+  - Event-Driven Architecture
+  - Fault Tolerance in Distributed DBs (deep)
+  - Load Balancing in Distributed DBs (deep)
+  - Partitioning types (deep)
+  - Sharding algorithms (deep)
+  - Database backups (deep)
+  - Recovery management (just know WAL exists)
+
+================================================================

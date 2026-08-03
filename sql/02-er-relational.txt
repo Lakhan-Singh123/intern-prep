@@ -1,0 +1,184 @@
+================================================================
+MODULE 2 — ER MODEL & RELATIONAL MODEL
+================================================================
+
+PART A — ER MODEL
+=================
+
+WHY ER MODEL
+------------
+Blueprint before building. Design what exists and how things relate
+BEFORE writing any SQL. Bad design = duplicate data, broken relationships,
+painful queries forever. ER diagram = floor plan. Tables = the building.
+
+
+ENTITY & ATTRIBUTES
+-------------------
+Entity    = real-world object system cares about
+            Flipkart: Customer, Product, Order, Seller, Category
+
+Attribute = property of an entity
+            Customer: customer_id, name, email, phone, address
+
+ATTRIBUTE TYPES:                                                 ★★★
+  Simple        can't be broken down. age, email.
+  Composite     can be split. name → first_name + last_name
+                              address → street + city + state + pin
+
+  Single-valued one value per entity. date_of_birth.
+  Multi-valued  multiple values. phone_number (shown with double ellipse)
+
+  Derived       computed from another attribute. age from DOB.
+                Not stored, calculated on demand. (dashed ellipse)
+
+  Key attribute uniquely identifies entity. customer_id. (underlined)
+
+
+RELATIONSHIPS & CARDINALITY                                      ★★★
+---------------------------
+1:1   One-to-One
+      Person has one Passport. Passport belongs to one Person.
+      Person ——— has ——— Passport
+
+1:N   One-to-Many
+      One Customer places many Orders. Each Order belongs to one Customer.
+      Customer ——— places ———< Order
+
+M:N   Many-to-Many
+      One Order contains many Products. One Product in many Orders.
+      Order >——— contains ———< Product
+
+PARTICIPATION:
+  Total (double line)   every entity MUST be in the relationship
+                        Every Order MUST be placed by a Customer
+  Partial (single line) entity may or may not participate
+                        Not every Customer has placed an Order yet
+
+
+WEAK ENTITY                                                      ★★
+-----------
+Cannot be uniquely identified by its own attributes alone.
+Depends on a strong entity to exist.
+
+Example: OrderItem depends on Order.
+  line_number=1 exists in many orders → not unique alone
+  Need (order_id + line_number) together to identify it
+  order_id comes from strong entity Order
+
+  Weak entity:              double rectangle
+  Identifying relationship: double diamond
+  Partial key (discriminator): dashed underline on line_number
+
+Rule: delete the strong entity → all its weak entities deleted too.
+
+
+ISA / GENERALISATION / SPECIALISATION                            ★★
+--------------------------------------
+Inheritance in databases.
+
+Generalisation (bottom-up): Car + Truck → generalise → Vehicle
+Specialisation (top-down):  Employee → specialise → Manager, Intern
+
+         Employee (emp_id, name, salary)
+        /                    \
+  Manager                   Intern
+  (department, budget)      (college, stipend)
+
+INHERITANCE TYPES:
+  Overlapping  entity can belong to multiple subclasses
+               Person can be both Student AND Employee
+  Disjoint     entity belongs to exactly one subclass
+               Vehicle is either Car OR Truck, not both
+  Total        every superclass entity must belong to some subclass
+  Partial      some superclass entities may not belong to any subclass
+
+
+ER DIAGRAM SYMBOLS
+------------------
+Rectangle         → Entity
+Double Rectangle  → Weak Entity
+Ellipse           → Attribute
+Double Ellipse    → Multi-valued Attribute
+Dashed Ellipse    → Derived Attribute
+Diamond           → Relationship
+Double Diamond    → Identifying Relationship (for weak entity)
+Underline         → Key Attribute
+Double Line       → Total Participation
+Single Line       → Partial Participation
+
+
+================================================================
+PART B — RELATIONAL MODEL
+=========================
+
+TERMINOLOGY                                                      ★★★
+-----------
+Relation    = Table
+Tuple       = Row
+Attribute   = Column
+Domain      = allowed values for an attribute
+              (domain of 'gender' = {'M', 'F', 'Other'})
+Degree      = number of columns
+Cardinality = number of rows
+Schema vs Instance: schema = structure, instance = actual data
+
+
+CONVERTING ER → RELATIONAL MODEL                                 ★★★
+--------------------------------
+1:N   FK goes on the MANY side
+        Customer (1) ——— places ———< Order (N)
+        → Order table gets customer_id as foreign key
+
+M:N   Create a junction/bridge table
+        Order >——— contains ———< Product
+        → OrderItem(order_id, product_id, quantity)
+          PK = composite (order_id, product_id)
+
+1:1   FK goes on either side (prefer side with total participation)
+        Employee ——— assigned ——— Desk
+        → Employee gets desk_id FK (or Desk gets employee_id FK)
+
+Weak  Table includes PK of strong entity
+        OrderItem(order_id FK, line_number, product_id, quantity)
+        PK = (order_id, line_number)
+
+ISA   Option 1: one table per subclass (include superclass attrs)
+      Option 2: one table for superclass + one per subclass (FK to super)
+      Option 3: one big table with nullable columns (denormalised)
+
+
+RELATIONAL ALGEBRA (foundations SQL is built on)                 ★
+--------------------------------------------------
+σ  SELECT (sigma)    filter rows
+     σ(salary > 50000)(Employee) = WHERE salary > 50000
+
+π  PROJECT (pi)      pick columns
+     π(name, salary)(Employee) = SELECT name, salary
+
+⋈  JOIN (bowtie)     combine tables on condition
+     Employee ⋈(emp.dept_id = dept.id) Department
+
+∪  UNION             all rows from both, no duplicates
+∩  INTERSECTION      rows in both
+−  DIFFERENCE        rows in first but not second
+×  CROSS PRODUCT     every row × every row (cartesian)
+
+
+QUICK REFERENCE
+---------------
+Entity          → real-world object (Customer, Order, Product)
+Attribute types → simple/composite, single/multi-valued, derived, key
+1:1             → FK on either side
+1:N             → FK on many side
+M:N             → junction table with composite PK
+Weak entity     → no key of own, depends on strong entity, double rectangle
+Participation   → total (must participate, double line) / partial (may, single line)
+ISA             → inheritance: generalisation (bottom-up) / specialisation (top-down)
+Overlapping     → can be in multiple subclasses
+Disjoint        → exactly one subclass
+Relation        → table | Tuple → row | Attribute → column
+Degree          → # columns | Cardinality → # rows
+Domain          → allowed values for a column
+M:N conversion  → always creates a new junction table
+Weak conversion → PK of strong entity included in weak entity's table
+================================================================

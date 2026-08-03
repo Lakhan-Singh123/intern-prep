@@ -1,0 +1,120 @@
+================================================================
+MODULE 1 — DBMS FOUNDATIONS
+================================================================
+
+WHY DBMS EXISTS
+---------------
+Flat files (CSV/Excel) break at scale:
+  Concurrent writes    → two users write simultaneously → one overwrites other → data lost
+  No recovery          → bug deletes file → no undo
+  Slow queries         → full file scan for every query → O(n) always
+  No structure         → different devs use different column names → garbage data
+  No access control    → anyone with file access sees everything
+
+DBMS = software layer between app and data on disk.
+Database = the actual organized data.
+(People say "database" for both — fine in conversation, know the distinction)
+
+  Your App → DBMS → Data on Disk
+               ↑
+     handles: queries, concurrency, security, recovery, schema
+
+Examples: MySQL, PostgreSQL, Oracle, SQL Server, SQLite.
+
+
+WHAT DBMS SOLVES
+----------------
+Problem                          Solution
+──────────────────────────────────────────────────────────────
+Concurrent writes → corruption   Concurrency control (locks, transactions)
+Bug deletes data → no recovery   Rollback, WAL logs, backups
+Slow queries on large data       Indexes (O(log n) not O(n))
+No structure enforcement         Schema (types, constraints, foreign keys)
+No access control                Users, roles, GRANT/REVOKE
+Duplicate/inconsistent data      Normalization, constraints
+
+
+DATA ABSTRACTION — 3 LEVELS                                      ★★
+---------------------------
+         ┌─────────────────────────────┐
+Level 3  │  VIEW LEVEL (External)      │  what each user sees (filtered/formatted)
+         └─────────────┬───────────────┘
+                       │
+         ┌─────────────▼───────────────┐
+Level 2  │  LOGICAL LEVEL (Conceptual) │  what data exists and how it relates
+         │                             │  tables, columns, keys, relationships
+         └─────────────┬───────────────┘
+                       │
+         ┌─────────────▼───────────────┐
+Level 1  │  PHYSICAL LEVEL (Internal)  │  how data stored on disk
+         │                             │  B+ trees, pages, blocks — DBMS handles this
+         └─────────────────────────────┘
+
+Real example (Flipkart orders):
+  Physical: orders stored as B+ tree index, rows in 8KB pages on disk
+  Logical:  orders(order_id, user_id, amount, created_at) with FK to users
+  View:     Priya sees only her orders. Finance sees only amount+date. Admin sees all.
+
+Physical data independence: change physical storage → logical schema unchanged → apps don't break.
+
+
+SCHEMA vs INSTANCE                                               ★★★
+------------------
+Schema   = structure (table definitions, column names, types, constraints)
+           Changes rarely. Blueprint of the building.
+
+Instance = actual data at a point in time.
+           Changes constantly. People currently inside the building.
+
+  -- Schema:
+  CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(100), email VARCHAR(100) UNIQUE);
+
+  -- Instance (data at 3pm today):
+  id=1, name='Priya', email='priya@gmail.com'
+  id=2, name='Rohan', email='rohan@gmail.com'
+
+Also called: Intension (schema) vs Extension (instance).
+
+
+DBMS ARCHITECTURE
+-----------------
+1-Tier:  App + DB on same machine. Local dev/testing only.
+
+2-Tier:  Client App → Database Server (direct connection)
+         Simple, fast. App logic mixed with DB calls.
+
+3-Tier:  Client → Application Server → Database Server   ← production standard
+         Flipkart app → backend API → MySQL
+         DB never directly exposed to client.
+         App server handles: business logic, auth, caching.
+
+
+SQL COMMAND TYPES                                                ★★★
+-----------------
+DDL  Data Definition Language   CREATE, ALTER, DROP, TRUNCATE    define/change structure
+DML  Data Manipulation Language SELECT, INSERT, UPDATE, DELETE   work with data
+DCL  Data Control Language      GRANT, REVOKE                    permissions
+TCL  Transaction Control Lang   COMMIT, ROLLBACK, SAVEPOINT      manage transactions
+
+INTERVIEW TRAP:
+  TRUNCATE = DDL (not DML).
+  DELETE: removes rows one by one, logged, can ROLLBACK.
+  TRUNCATE: drops and recreates table — faster, cannot ROLLBACK in most DBs.
+
+
+QUICK REFERENCE
+---------------
+DBMS           → software between app and disk. Solves concurrency, recovery, query speed.
+Database       → the organized data itself
+3 abstraction  → Physical (disk) → Logical (tables) → View (per user)
+Schema         → structure (doesn't change often) = Intension
+Instance       → actual data at a point in time = Extension
+1-tier         → local only
+2-tier         → client + DB server (direct)
+3-tier         → client + app server + DB server (production)
+DDL            → CREATE, ALTER, DROP, TRUNCATE (structure)
+DML            → SELECT, INSERT, UPDATE, DELETE (data)
+DCL            → GRANT, REVOKE (permissions)
+TCL            → COMMIT, ROLLBACK, SAVEPOINT (transactions)
+TRUNCATE trap  → DDL not DML. Faster than DELETE. Cannot rollback.
+================================================================
